@@ -1,3 +1,34 @@
+//! [PKBuffer](https://github.com/frank2/exe-rs) is a library built for arbitrary casting of data structures
+//! onto segments of memory! This includes sections of unowned memory, such as examining the headers of a
+//! currently running executable. It creates an interface for reading and writing data structures to an
+//! arbitrary buffer of bytes.
+//!
+//! For example:
+//! ```rust
+//! use pkbuffer::VecBuffer;
+//!
+//! #[repr(packed)]
+//! struct Object {
+//!    byte: u8,
+//!    word: u16,
+//!    dword: u32,
+//! }
+//!
+//! let mut buffer = VecBuffer::with_initial_size(std::mem::size_of::<Object>());
+//! let object = buffer.get_mut_ref::<Object>(0).unwrap();
+//! object.byte = 0x01;
+//! object.word = 0x0302;
+//! object.dword = 0x07060504;
+//!
+//! assert_eq!(buffer, [1,2,3,4,5,6,7]);
+//! ```
+//!
+//! The buffer comes in two forms: *pointer form* ([`Buffer`](Buffer)) and
+//! *allocated form* ([`VecBuffer`](VecBuffer)). Each of these structures come
+//! in handy for different reasons. [`Buffer`](Buffer)'s extra implementations
+//! are based on the [slice](slice) object, whereas [`VecBuffer`](VecBuffer)'s
+//! extra implementations are based on the [Vec](Vec) object.
+
 #[cfg(test)]
 mod tests;
 
@@ -53,7 +84,7 @@ pub fn slice_ref_to_mut_bytes<T>(data: &mut [T]) -> &mut [u8] {
     unsafe { std::slice::from_raw_parts_mut(ptr, size) }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, Debug)]
 pub struct Buffer {
     pointer: *const u8,
     size: usize,
@@ -394,6 +425,31 @@ impl Buffer {
             Buffer::new(unsafe { self.as_ptr().add(mid) }, self.len() - mid)))
     }
 }
+impl PartialEq for Buffer {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_slice() == other.as_slice()
+    }
+}
+impl PartialEq<[u8]> for Buffer {
+    fn eq(&self, other: &[u8]) -> bool {
+        self.as_slice() == other
+    }
+}
+impl<const N: usize> PartialEq<[u8; N]> for Buffer {
+    fn eq(&self, other: &[u8; N]) -> bool {
+        self.as_slice() == other
+    }
+}
+impl PartialEq<Vec<u8>> for Buffer {
+    fn eq(&self, other: &Vec<u8>) -> bool {
+        self.as_slice() == other.as_slice()
+    }
+}
+impl PartialEq<VecBuffer> for Buffer {
+    fn eq(&self, other: &VecBuffer) -> bool {
+        self.as_slice() == other.as_slice()
+    }
+}
 impl<Idx: std::slice::SliceIndex<[u8]>> std::ops::Index<Idx> for Buffer {
     type Output = Idx::Output;
 
@@ -474,7 +530,7 @@ impl<'a> Iterator for BufferIterMut<'a> {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, Debug)]
 pub struct VecBuffer {
     data: Vec<u8>,
     buffer: Buffer,
@@ -769,6 +825,31 @@ impl VecBuffer {
         let data = self.data.to_ascii_lowercase();
 
         Self::from_data(&data)
+    }
+}
+impl PartialEq for VecBuffer {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_slice() == other.as_slice()
+    }
+}
+impl PartialEq<[u8]> for VecBuffer {
+    fn eq(&self, other: &[u8]) -> bool {
+        self.as_slice() == other
+    }
+}
+impl<const N: usize> PartialEq<[u8; N]> for VecBuffer {
+    fn eq(&self, other: &[u8; N]) -> bool {
+        self.as_slice() == other
+    }
+}
+impl PartialEq<Vec<u8>> for VecBuffer {
+    fn eq(&self, other: &Vec<u8>) -> bool {
+        self.as_slice() == other.as_slice()
+    }
+}
+impl PartialEq<Buffer> for VecBuffer {
+    fn eq(&self, other: &Buffer) -> bool {
+        self.as_slice() == other.as_slice()
     }
 }
 impl<Idx: std::slice::SliceIndex<[u8]>> std::ops::Index<Idx> for VecBuffer {

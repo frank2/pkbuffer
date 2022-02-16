@@ -110,4 +110,6 @@ fn test_vecbuffer() {
     buffer.extend_from_data(&rhs);
     assert!(buffer.contains([0xAB, 0xAD, 0x1D, 0xEA]));
     assert!(buffer.contains([0xC0, 0xFF, 0xEE, 0x74]));
+
+    assert_eq!(buffer, hex::decode("facebabedeadbeefc0ffee74deadbea7defaced1abad1dea").unwrap());
 }
