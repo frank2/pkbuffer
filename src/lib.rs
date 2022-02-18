@@ -1154,13 +1154,13 @@ impl VecBuffer {
 impl Clone for VecBuffer {
     fn clone(&self) -> Self {
         let data = self.data.clone();
-        let buffer = Buffer::from_data(&data);
+        let buffer = Buffer::from_ref(&data);
         
         Self { data, buffer }
     }
     fn clone_from(&mut self, source: &Self) {
         self.data = source.to_vec();
-        self.buffer = Buffer::from_data(&self.data);
+        self.buffer = Buffer::from_ref(&self.data);
     }
 }
 impl PartialEq for VecBuffer {
