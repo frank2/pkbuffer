@@ -750,7 +750,7 @@ impl<'a> Iterator for BufferIterMut<'a> {
 /// the buffer interface. (Plus the fact that the [`Buffer`](Buffer) object can defy mutability rules in Rust
 /// if you're not careful!) Though because it's built on top of the [`Buffer`](Buffer) object, documentation
 /// will refer to it frequently.
-#[derive(Clone, Eq, Debug)]
+#[derive(Eq, Debug)]
 pub struct VecBuffer {
     data: Vec<u8>,
     buffer: Buffer,
@@ -1149,6 +1149,18 @@ impl VecBuffer {
         let data = self.data.repeat(n);
 
         Self::from_data(&data)
+    }
+}
+impl Clone for VecBuffer {
+    fn clone(&self) -> Self {
+        let data = self.data.clone();
+        let buffer = Buffer::from_data(&data);
+        
+        Self { data, buffer }
+    }
+    fn clone_from(&mut self, source: &Self) {
+        self.data = source.to_vec();
+        self.buffer = Buffer::from_data(&self.data);
     }
 }
 impl PartialEq for VecBuffer {
