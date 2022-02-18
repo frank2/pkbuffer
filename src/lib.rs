@@ -436,6 +436,47 @@ impl Buffer {
     pub fn write_slice_ref<T>(&mut self, offset: usize, data: &[T]) -> Result<(), Error> {
         self.write(offset, slice_ref_to_bytes::<T>(data))
     }
+    /// Start the buffer object with the given byte data.
+    ///
+    /// Returns an [`Error::OutOfBounds`](Error::OutOfBounds) error if the write runs out of boundaries.
+    pub fn start_with<B: AsRef<[u8]>>(&mut self, data: B) -> Result<(), Error> {
+        self.write(0, data)
+    }
+    /// Start the buffer with the given reference data.
+    ///
+    /// Returns an [`Error::OutOfBounds`](Error::OutOfBounds) error if the write runs out of boundaries.
+    pub fn start_with_ref<T>(&mut self, data: &T) -> Result<(), Error> {
+        self.start_with(ref_to_bytes::<T>(data))
+    }
+    /// Start the buffer with the given slice reference data.
+    ///
+    /// Returns an [`Error::OutOfBounds`](Error::OutOfBounds) error if the write runs out of boundaries.
+    pub fn start_with_slice_ref<T>(&mut self, data: &[T]) -> Result<(), Error> {
+        self.start_with(slice_ref_to_bytes::<T>(data))
+    }
+    /// End the buffer object with the given byte data.
+    ///
+    /// Returns an [`Error::OutOfBounds`](Error::OutOfBounds) error if the write runs out of boundaries.
+    pub fn end_with<B: AsRef<[u8]>>(&mut self, data: B) -> Result<(), Error> {
+        let buf = data.as_ref();
+
+        if buf.len() > self.len() { return Err(Error::OutOfBounds(self.len(),buf.len())); }
+        
+        self.write(self.len()-buf.len(), data)
+    }
+    /// End the buffer with the given reference data.
+    ///
+    /// Returns an [`Error::OutOfBounds`](Error::OutOfBounds) error if the write runs out of boundaries.
+    pub fn end_with_ref<T>(&mut self, data: &T) -> Result<(), Error> {
+        self.end_with(ref_to_bytes::<T>(data))
+    }
+    /// End the buffer with the given slice reference data.
+    ///
+    /// Returns an [`Error::OutOfBounds`](Error::OutOfBounds) error if the write runs out of boundaries.
+    pub fn end_with_slice_ref<T>(&mut self, data: &[T]) -> Result<(), Error> {
+        self.end_with(slice_ref_to_bytes::<T>(data))
+    }
+    /// End the buffer object with the given reference data.
     /// Search for the given [`u8`](u8) [slice](slice) *data* within the given buffer.
     ///
     /// On success, this returns a vector of offsets to the given byte sequences. On error, it will
@@ -872,6 +913,43 @@ impl VecBuffer {
     pub fn write_slice_ref<T>(&mut self, offset: usize, data: &[T]) -> Result<(), Error> {
         self.buffer.write_slice_ref::<T>(offset, data)
     }
+    /// See [`Buffer::start_with`](Buffer::start_with).
+    pub fn start_with<B: AsRef<[u8]>>(&mut self, data: B) -> Result<(), Error> {
+        self.buffer.start_with(data)
+    }
+    /// See [`Buffer::start_with_ref`](Buffer::start_with_ref).
+    pub fn start_with_ref<T>(&mut self, data: &T) -> Result<(), Error> {
+        self.buffer.start_with_ref::<T>(data)
+    }
+    /// See [`Buffer::start_with_slice_ref`](Buffer::start_with_slice_ref).
+    pub fn start_with_slice_ref<T>(&mut self, data: &[T]) -> Result<(), Error> {
+        self.buffer.start_with_slice_ref::<T>(data)
+    }
+    /// See [`Buffer::end_with`](Buffer::end_with).
+    pub fn end_with<B: AsRef<[u8]>>(&mut self, data: B) -> Result<(), Error> {
+        self.buffer.end_with(data)
+    }
+    /// See [`Buffer::end_with_ref`](Buffer::end_with_ref).
+    pub fn end_with_ref<T>(&mut self, data: &T) -> Result<(), Error> {
+        self.buffer.end_with_ref::<T>(data)
+    }
+    /// See [`Buffer::end_with_slice_ref`](Buffer::end_with_slice_ref).
+    pub fn end_with_slice_ref<T>(&mut self, data: &[T]) -> Result<(), Error> {
+        self.buffer.end_with_slice_ref::<T>(data)
+    }
+    /// Appends the given data to the end of the buffer. This resizes and expands the underlying vector.
+    pub fn append<B: AsRef<[u8]>>(&mut self, data: B) {
+        self.data.append(&mut data.as_ref().to_vec());
+        self.reassign();
+    }
+    /// Appends the given reference to the end of the buffer. This resizes and expands the underlying vector.
+    pub fn append_ref<T>(&mut self, data: &T) {
+        self.append(ref_to_bytes::<T>(data));
+    }
+    /// Appends the given slice reference to the end of the buffer. This resizes and expands the underlying vector.
+    pub fn append_slice_ref<T>(&mut self, data: &[T]) {
+        self.append(slice_ref_to_bytes::<T>(data));
+    }
     /// See [`Buffer::search`](Buffer::search).
     pub fn search<B: AsRef<[u8]>>(&self, data: B) -> Result<Option<Vec<usize>>, Error> {
         self.buffer.search(data)
@@ -932,11 +1010,6 @@ impl VecBuffer {
         let result = self.data.pop();
         if result.is_some() { self.reassign(); }
         result
-    }
-    /// Append a given vector to the end of this buffer. See [`Vec::append`](Vec::append).
-    pub fn append(&mut self, other: &mut Vec<u8>) {
-        self.data.append(other);
-        self.reassign();
     }
     /// Clear the given buffer.
     pub fn clear(&mut self) {
