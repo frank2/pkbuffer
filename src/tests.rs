@@ -65,19 +65,19 @@ fn test_buffer() {
 
     let search_results = buffer.search([0xDE, 0xFA, 0xCE, 0xD1]);
     assert!(search_results.is_ok());
-    assert!(search_results.unwrap().is_some());
+    assert!(search_results.unwrap().next().is_some());
 
     let search_results = buffer.search_ref::<u32>(&0xFACEBABE);
     assert!(search_results.is_ok());
-    assert!(search_results.unwrap().is_none());
+    assert!(search_results.unwrap().next().is_none());
 
     let search_results = buffer.search_ref::<u32>(&0xADABEFBE);
     assert!(search_results.is_ok());
-    assert!(search_results.unwrap().is_some());
+    assert!(search_results.unwrap().next().is_some());
 
     let search_results = buffer.search_slice_ref::<u16>(&[0xADDE, 0xEFBE]);
     assert!(search_results.is_ok());
-    assert!(search_results.unwrap().is_some());
+    assert!(search_results.unwrap().next().is_some());
 
     assert!(buffer.contains([0xDE, 0xAD, 0xBE, 0xA7]));
     assert!(!buffer.contains_ref::<u32>(&0xFACEBABE));
