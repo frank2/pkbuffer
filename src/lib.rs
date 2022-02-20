@@ -28,6 +28,18 @@
 //! in handy for different reasons. [`Buffer`](Buffer)'s extra implementations
 //! are based on the [slice](slice) object, whereas [`VecBuffer`](VecBuffer)'s
 //! extra implementations are based on the [Vec](Vec) object.
+//!
+//! [`VecBuffer`](VecBuffer)s are handy for creating a brand-new buffer of objects.
+//!
+//! ```rust
+//! use pkbuffer::VecBuffer;
+//!
+//! let mut buffer = VecBuffer::new();
+//! buffer.append_ref::<u8>(&0x1);
+//! buffer.append_ref::<u16>(&0x0302);
+//! buffer.append_ref::<u32>(&0x07060504);
+//! assert_eq!(buffer, [1,2,3,4,5,6,7]);
+//! ```
 
 #[cfg(test)]
 mod tests;
