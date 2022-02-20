@@ -5,8 +5,14 @@ You can read the documentation [here](https://docs.rs/pkbuffer/), and see variou
 
 # Changelog
 
+## 0.2.0
+### Bugfixes
+* ```Buffer``` object was not getting updated on clone in ```VecBuffer```. That's now fixed.
+### Features
+* ```Buffer::search``` and similar functions now return an iterator to all search results, including no search results.
+
 ## 0.1.0
-### features
+### Features
 * package released!
 * created a buffer object that points to arbitrary memory locations via ```u8``` pointer
 * created a vector-backed buffer object that points at the vector with extra vector features
