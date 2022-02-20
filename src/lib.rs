@@ -498,6 +498,7 @@ impl Buffer {
     /// assert_eq!(results.next().unwrap(), 2);
     /// assert_eq!(results.next().unwrap(), 6);
     /// assert_eq!(results.next().unwrap(), 8);
+    /// assert!(results.next().is_none());
     ///
     /// // alternatively, you can snatch up the search results into a Vec
     /// let search_results = buffer.search(&[0xBE, 0xEF]).unwrap().collect::<Vec<usize>>();
@@ -743,6 +744,7 @@ impl<'a> Iterator for BufferIterMut<'a> {
     }
 }
 
+/// An iterator for searching over a [`Buffer`](Buffer)'s space for a given binary search term.
 pub struct BufferSearchIter<'a> {
     buffer: &'a Buffer,
     term: Vec<u8>,
@@ -750,6 +752,10 @@ pub struct BufferSearchIter<'a> {
     offset_index: usize,
 }
 impl<'a> BufferSearchIter<'a> {
+    /// Create a new search iterator over a buffer reference. Typically you'll just want to call [`Buffer::search`](Buffer::search) instead,
+    /// but this essentially does the same thing.
+    ///
+    /// Returns an [`Error::OutOfBounds`](Error::OutOfBounds) error if the search term is longer than the buffer.
     pub fn new<B: AsRef<[u8]>>(buffer: &'a Buffer, term: B) -> Result<Self, Error> {
         let search = term.as_ref();
 
