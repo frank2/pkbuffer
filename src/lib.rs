@@ -476,45 +476,22 @@ impl Buffer {
     pub fn end_with_slice_ref<T>(&mut self, data: &[T]) -> Result<(), Error> {
         self.end_with(slice_ref_to_bytes::<T>(data))
     }
-    /// End the buffer object with the given reference data.
     /// Search for the given [`u8`](u8) [slice](slice) *data* within the given buffer.
     ///
-    /// On success, this returns a vector of offsets to the given byte sequences. On error, it will
-    /// return an [`Error::OutOfBounds`](Error::OutOfBounds) error.
-    pub fn search<B: AsRef<[u8]>>(&self, data: B) -> Result<Option<Vec<usize>>, Error> {
-        let search = data.as_ref();
-
-        if search.len() > self.len() { return Err(Error::OutOfBounds(self.len(),search.len())); }
-
-        let buffer_data = self.as_slice();
-        let mut offsets = Vec::<usize>::new();
-
-        for i in 0..=(self.len() - search.len()) {
-            if buffer_data[i] == search[0] { offsets.push(i); }
-        }
-
-        let mut results = Vec::<usize>::new();
-
-        for offset in &offsets {
-            let found_slice = match self.read(*offset, search.len()) {
-                Ok(s) => s,
-                Err(e) => return Err(e),
-            };
-
-            if found_slice == search { results.push(*offset); }
-        }
-        
-        if results.len() == 0 { Ok(None) }
-        else { Ok(Some(results)) }
+    /// On success, this returns an iterator to all found offsets which match the given search term.
+    /// Typically, the error returned is an [`Error::OutOfBounds`](Error::OutOfBounds) error, when the search
+    /// term exceeds the size of the buffer.
+    pub fn search<'a, B: AsRef<[u8]>>(&'a self, data: B) -> Result<BufferSearchIter<'a>, Error> {
+        BufferSearchIter::new(self, data)
     }
     /// Search for the following reference of type *T*. This converts the object into a [`u8`](u8) [slice](slice).
     /// See [`Buffer::search`](Buffer::search).
-    pub fn search_ref<T>(&self, data: &T) -> Result<Option<Vec<usize>>, Error> {
+    pub fn search_ref<'a, T>(&'a self, data: &T) -> Result<BufferSearchIter<'a>, Error> {
         self.search(ref_to_bytes::<T>(data))
     }
     /// Search for the following slice reference of type *T*. This converts the slice into a [`u8`](u8) [slice](slice).
     /// See [`Buffer::search`](Buffer::search).
-    pub fn search_slice_ref<T>(&self, data: &[T]) -> Result<Option<Vec<usize>>, Error> {
+    pub fn search_slice_ref<'a, T>(&'a self, data: &[T]) -> Result<BufferSearchIter<'a>, Error> {
         self.search(slice_ref_to_bytes::<T>(data))
     }
     /// Check if this buffer contains the following [`u8`](u8) [slice](slice) sequence.
@@ -744,6 +721,47 @@ impl<'a> Iterator for BufferIterMut<'a> {
     }
 }
 
+pub struct BufferSearchIter<'a> {
+    buffer: &'a Buffer,
+    term: Vec<u8>,
+    offsets: Vec<usize>,
+    offset_index: usize,
+}
+impl<'a> BufferSearchIter<'a> {
+    pub fn new<B: AsRef<[u8]>>(buffer: &'a Buffer, term: B) -> Result<Self, Error> {
+        let search = term.as_ref();
+
+        if search.len() > buffer.len() { return Err(Error::OutOfBounds(buffer.len(),search.len())); }
+        
+        let mut offsets = Vec::<usize>::new();
+
+        for i in 0..=(buffer.len() - search.len()) {
+            if buffer[i] == search[0] { offsets.push(i); }
+        }
+
+        Ok(Self { buffer: buffer, term: search.to_vec(), offsets: offsets, offset_index: 0 })
+    }
+}
+impl<'a> Iterator for BufferSearchIter<'a> {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if self.offset_index >= self.offsets.len() { return None; }
+
+            let offset = self.offsets[self.offset_index];
+            self.offset_index += 1;
+
+            let found_slice = match self.buffer.read(offset, self.term.len()) {
+                Ok(s) => s,
+                Err(_) => return None,
+            };
+
+            if found_slice == self.term.as_slice() { return Some(offset); }
+        }
+    }
+}
+
 /// An owned-data [`Buffer`](Buffer) object.
 ///
 /// Since pointers are so scary, this is the primary vessel by which most people will be accessing
@@ -951,15 +969,15 @@ impl VecBuffer {
         self.append(slice_ref_to_bytes::<T>(data));
     }
     /// See [`Buffer::search`](Buffer::search).
-    pub fn search<B: AsRef<[u8]>>(&self, data: B) -> Result<Option<Vec<usize>>, Error> {
+    pub fn search<'a, B: AsRef<[u8]>>(&'a self, data: B) -> Result<BufferSearchIter<'a>, Error> {
         self.buffer.search(data)
     }
     /// See [`Buffer::search_ref`](Buffer::search_ref).
-    pub fn search_ref<T>(&self, data: &T) -> Result<Option<Vec<usize>>, Error> {
+    pub fn search_ref<'a, T>(&'a self, data: &T) -> Result<BufferSearchIter<'a>, Error> {
         self.buffer.search_ref::<T>(data)
     }
     /// See [`Buffer::search_slice_ref`](Buffer::search_slice_ref).
-    pub fn search_slice_ref<T>(&self, data: &[T]) -> Result<Option<Vec<usize>>, Error> {
+    pub fn search_slice_ref<'a, T>(&'a self, data: &[T]) -> Result<BufferSearchIter<'a>, Error> {
         self.buffer.search_slice_ref::<T>(data)
     }
     /// See [`Buffer::contains`](Buffer::contains).
