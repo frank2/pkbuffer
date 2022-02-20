@@ -2,7 +2,7 @@
 name = "pkbuffer"
 description = "Buffer objects made for arbitrary casting and addressing!"
 repository = "https://github.com/frank2/pkbuffer"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["frank2@dc949.org"]
 edition = "2018"
 license = "GPL-3.0"
