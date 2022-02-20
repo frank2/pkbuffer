@@ -481,6 +481,28 @@ impl Buffer {
     /// On success, this returns an iterator to all found offsets which match the given search term.
     /// Typically, the error returned is an [`Error::OutOfBounds`](Error::OutOfBounds) error, when the search
     /// term exceeds the size of the buffer.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use hex;
+    /// use pkbuffer::Buffer;
+    ///
+    /// let data = hex::decode("beefbeefb33fbeefbeef").unwrap();
+    /// let buffer = Buffer::from_ref(&data);
+    /// let search = buffer.search(&[0xBE, 0xEF]);
+    /// assert!(search.is_ok());
+    ///
+    /// let mut results = search.unwrap();
+    /// assert_eq!(results.next().unwrap(), 0);
+    /// assert_eq!(results.next().unwrap(), 2);
+    /// assert_eq!(results.next().unwrap(), 6);
+    /// assert_eq!(results.next().unwrap(), 8);
+    ///
+    /// // alternatively, you can snatch up the search results into a Vec
+    /// let search_results = buffer.search(&[0xBE, 0xEF]).unwrap().collect::<Vec<usize>>();
+    /// assert_eq!(search_results, [0,2,6,8]);
+    /// ```
     pub fn search<'a, B: AsRef<[u8]>>(&'a self, data: B) -> Result<BufferSearchIter<'a>, Error> {
         BufferSearchIter::new(self, data)
     }
