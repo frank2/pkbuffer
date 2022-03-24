@@ -5,6 +5,15 @@ You can read the documentation [here](https://docs.rs/pkbuffer/), and see variou
 
 # Changelog
 
+## 0.3.0
+**This version makes major changes!** The `Buffer` struct is now a trait, and the struct has been converted to `PtrBuffer`. This simplifies the code and unifies the featureset without having to repeat code all over the place. Additionally, it gives the user the ability to define their own `Buffer` object.
+
+### Bugfixes
+* `IntoIter` was returning references when it should be returning values, this is fixed.
+### Features
+* `Buffer` is now a trait, which allows the featureset of both `VecBuffer` and the new `PtrBuffer` to be unified.
+* `Error` now makes use of the `into()` function with regards to `std::io::Error`.
+
 ## 0.2.0
 ### Bugfixes
 * ```Buffer``` object was not getting updated on clone in ```VecBuffer```. That's now fixed.
