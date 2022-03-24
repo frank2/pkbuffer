@@ -226,10 +226,8 @@ pub trait Buffer {
     }
     /// Save this buffer to disk.
     fn save<P: AsRef<std::path::Path>>(&self, filename: P) -> Result<(), Error> {
-        match std::fs::write(filename, self.as_slice()) {
-            Ok(()) => Ok(()),
-            Err(e) => Err(Error::IoError(e)),
-        }
+        std::fs::write(filename, self.as_slice())?;
+        Ok(())
     }
     /// Get the given byte or range of bytes from the buffer. See [`slice::get`](slice::get) for more details.
     fn get<I: std::slice::SliceIndex<[u8]>>(&self, index: I) -> Option<&I::Output> {
@@ -256,11 +254,7 @@ pub trait Buffer {
     /// assert_eq!(*dword.unwrap(), 0xEFBEADDE);
     /// ```
     fn get_ref<T>(&self, offset: usize) -> Result<&T, Error> {
-        let ptr = match self.offset_to_ptr(offset) {
-            Ok(p) => p,
-            Err(e) => return Err(e),
-        };
-
+        let ptr = self.offset_to_ptr(offset)?;
         let size = std::mem::size_of::<T>();
 
         if offset+size > self.len() {
@@ -271,11 +265,7 @@ pub trait Buffer {
     }
     /// Get a mutable reference to a given object within the buffer. See [`Buffer::get_ref`](Buffer::get_ref).
     fn get_mut_ref<T>(&mut self, offset: usize) -> Result<&mut T, Error> {
-        let ptr = match self.offset_to_mut_ptr(offset) {
-            Ok(p) => p,
-            Err(e) => return Err(e),
-        };
-
+        let ptr = self.offset_to_mut_ptr(offset)?;
         let size = std::mem::size_of::<T>();
 
         if offset+size > self.len() {
@@ -289,11 +279,7 @@ pub trait Buffer {
     /// Returns an [`Error::InvalidPointer`](Error::InvalidPointer) error if the reference did not
     /// originate from this buffer.
     fn make_mut_ref<T>(&mut self, data: &T) -> Result<&mut T, Error> {
-        let offset = match self.ref_to_offset(data) {
-            Ok(o) => o,
-            Err(e) => return Err(e),
-        };
-
+        let offset = self.ref_to_offset(data)?;
         self.get_mut_ref::<T>(offset)
     }
     /// Gets a slice reference of type *T* at the given *offset* with the given *size*.
@@ -313,11 +299,7 @@ pub trait Buffer {
     /// assert_eq!(slice.unwrap(), [0x0DF0, 0xEFBE, 0xEA1D, 0xADDE]);
     /// ```
     fn get_slice_ref<T>(&self, offset: usize, size: usize) -> Result<&[T], Error> {
-        let ptr = match self.offset_to_ptr(offset) {
-            Ok(p) => p,
-            Err(e) => return Err(e),
-        };
-
+        let ptr = self.offset_to_ptr(offset)?;
         let real_size = std::mem::size_of::<T>() * size;
                 
         if offset+real_size > self.len() {
@@ -329,11 +311,7 @@ pub trait Buffer {
     /// Gets a mutable slice reference of type *T* at the given *offset* with the given *size*.
     /// See [`Buffer::get_slice_ref`](Buffer::get_slice_ref).
     fn get_mut_slice_ref<T>(&mut self, offset: usize, size: usize) -> Result<&mut [T], Error> {
-        let ptr = match self.offset_to_mut_ptr(offset) {
-            Ok(p) => p,
-            Err(e) => return Err(e),
-        };
-
+        let ptr = self.offset_to_mut_ptr(offset)?;
         let real_size = std::mem::size_of::<T>() * size;
                 
         if offset+real_size > self.len() {
@@ -347,11 +325,7 @@ pub trait Buffer {
     /// Returns an [`Error::InvalidPointer`](Error::InvalidPointer) error if the reference did not
     /// originate from this buffer.
     fn make_mut_slice_ref<T>(&mut self, data: &[T]) -> Result<&mut [T], Error> {
-        let offset = match self.ptr_to_offset(data.as_ptr() as *const u8) {
-            Ok(o) => o,
-            Err(e) => return Err(e),
-        };
-
+        let offset = self.ptr_to_offset(data.as_ptr() as *const u8)?;
         self.get_mut_slice_ref::<T>(offset, data.len())
     }
     /// Read an arbitrary *size* amount of bytes from the given *offset*.
@@ -373,11 +347,7 @@ pub trait Buffer {
     fn write<B: AsRef<[u8]>>(&mut self, offset: usize, data: B) -> Result<(), Error> {
         let buf = data.as_ref();
         let from_ptr = buf.as_ptr();
-        let to_ptr = match self.offset_to_mut_ptr(offset) {
-            Ok(p) => p,
-            Err(e) => return Err(e),
-        };
-
+        let to_ptr = self.offset_to_mut_ptr(offset)?;
         let size = buf.len();
 
         if offset+size > self.len() {
