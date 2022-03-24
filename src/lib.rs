@@ -135,18 +135,6 @@ pub trait Buffer: Sized {
     /// Get the `Buffer` object as a mutable slice.
     fn as_mut_slice(&mut self) -> &mut [u8];
 
-    /// Create a new `Buffer` object within the bounds of the current buffer.
-    fn sub_buffer(&self, offset: usize, size: usize) -> Result<Self, Error> {
-        if offset >= self.len() {
-            return Err(Error::OutOfBounds(self.len(),offset));
-        }
-
-        if offset+size > self.len() {
-            return Err(Error::OutOfBounds(self.len(),offset+size));
-        }
-
-        unsafe { Ok(Self::from_ptr(self.as_ptr().add(offset), size)) }
-    }
     /// Get a pointer to the end of the buffer.
     ///
     /// Note that this pointer is not safe to use because it points at the very end of
@@ -234,12 +222,12 @@ pub trait Buffer: Sized {
         self.as_mut_slice().reverse();
     }
     /// Return an iterator object ([`BufferIter`](BufferIter)) into the buffer.
-    fn iter(&self) -> BufferIter<'_, Self> {
-        BufferIter { buffer: self, index: 0 }
+    fn iter(&self) -> BufferIter<'_> {
+        BufferIter { buffer: self.as_slice(), index: 0 }
     }
     /// Return a mutable iterator object ([`BufferIterMut`](BufferIterMut)) into the buffer.
-    fn iter_mut(&mut self) -> BufferIterMut<'_, Self> {
-        BufferIterMut { buffer: self, index: 0 }
+    fn iter_mut(&mut self) -> BufferIterMut<'_> {
+        BufferIterMut { buffer: self.as_mut_slice(), index: 0 }
     }
     /// Save this buffer to disk.
     fn save<P: AsRef<std::path::Path>>(&self, filename: P) -> Result<(), Error> {
@@ -484,17 +472,17 @@ pub trait Buffer: Sized {
     /// let search_results = buffer.search(&[0xBE, 0xEF]).unwrap().collect::<Vec<usize>>();
     /// assert_eq!(search_results, [0,2,6,8]);
     /// ```
-    fn search<'a, B: AsRef<[u8]>>(&'a self, data: B) -> Result<BufferSearchIter<'a,Self>, Error> {
-        BufferSearchIter::<Self>::new(self, data)
+    fn search<'a, B: AsRef<[u8]>>(&'a self, data: B) -> Result<BufferSearchIter<'a>, Error> {
+        BufferSearchIter::new(self.as_slice(), data)
     }
     /// Search for the following reference of type *T*. This converts the object into a [`u8`](u8) [slice](slice).
     /// See [`Buffer::search`](Buffer::search).
-    fn search_ref<'a, T>(&'a self, data: &T) -> Result<BufferSearchIter<'a,Self>, Error> {
+    fn search_ref<'a, T>(&'a self, data: &T) -> Result<BufferSearchIter<'a>, Error> {
         self.search(ref_to_bytes::<T>(data))
     }
     /// Search for the following slice reference of type *T*. This converts the slice into a [`u8`](u8) [slice](slice).
     /// See [`Buffer::search`](Buffer::search).
-    fn search_slice_ref<'a, T>(&'a self, data: &[T]) -> Result<BufferSearchIter<'a,Self>, Error> {
+    fn search_slice_ref<'a, T>(&'a self, data: &[T]) -> Result<BufferSearchIter<'a>, Error> {
         self.search(slice_ref_to_bytes::<T>(data))
     }
     /// Check if this buffer contains the following [`u8`](u8) [slice](slice) sequence.
@@ -639,6 +627,19 @@ impl PtrBuffer {
     pub fn set_size(&mut self, size: usize) {
         self.size = size;
     }
+    
+    /// Create a new `PtrBuffer` object within the bounds of the current buffer.
+    pub fn sub_buffer(&self, offset: usize, size: usize) -> Result<Self, Error> {
+        if offset >= self.len() {
+            return Err(Error::OutOfBounds(self.len(),offset));
+        }
+
+        if offset+size > self.len() {
+            return Err(Error::OutOfBounds(self.len(),offset+size));
+        }
+
+        unsafe { Ok(Self::new(self.as_ptr().add(offset), size)) }
+    }
 }
 impl Buffer for PtrBuffer {
     /// Create a new `PtrBuffer` object from the given pointer/size pair.
@@ -738,47 +739,47 @@ impl std::iter::IntoIterator for PtrBuffer {
 }
 
 /// An iterator for a [`Buffer`](Buffer) object.
-pub struct BufferIter<'a,T: Buffer> {
-    buffer: &'a T,
+pub struct BufferIter<'a> {
+    buffer: &'a [u8],
     index: usize,
 }
-impl<'a,T: Buffer> BufferIter<'a,T> {
+impl<'a> BufferIter<'a> {
     /// Creates a new [`Buffer`](Buffer) iterator object.
-    pub fn new(buffer: &'a T, index: usize) -> Self {
+    pub fn new(buffer: &'a [u8], index: usize) -> Self {
         Self { buffer, index }
     }
 }
-impl<'a,T: Buffer> Iterator for BufferIter<'a,T> {
+impl<'a> Iterator for BufferIter<'a> {
     type Item = &'a u8;
 
     fn next(&mut self) -> Option<&'a u8> {
         if self.index >= self.buffer.len() { return None; }
 
-        let result = self.buffer.get(self.index);
+        let result = &self.buffer[self.index];
         self.index += 1;
 
-        result
+        Some(result)
     }
 }
 
 /// A mutable iterator for a [`Buffer`](Buffer) object.
-pub struct BufferIterMut<'a,T: Buffer> {
-    buffer: &'a mut T,
+pub struct BufferIterMut<'a> {
+    buffer: &'a mut [u8],
     index: usize,
 }
-impl<'a,T: Buffer> BufferIterMut<'a,T> {
+impl<'a> BufferIterMut<'a> {
     /// Create a new mutable iterator for a [`Buffer`](Buffer) object.
-    pub fn new(buffer: &'a mut T, index: usize) -> Self {
+    pub fn new(buffer: &'a mut [u8], index: usize) -> Self {
         Self { buffer, index }
     }
 }
-impl<'a,T: Buffer> Iterator for BufferIterMut<'a,T> {
+impl<'a> Iterator for BufferIterMut<'a> {
     type Item = &'a mut u8;
 
     fn next(&mut self) -> Option<&'a mut u8> {
         if self.index >= self.buffer.len() { return None; }
 
-        let ptr = self.buffer.get_mut(self.index).unwrap() as *mut u8;
+        let ptr = &mut self.buffer[self.index] as *mut u8;
         let result = unsafe { &mut *ptr };
         self.index += 1;
 
@@ -787,18 +788,18 @@ impl<'a,T: Buffer> Iterator for BufferIterMut<'a,T> {
 }
 
 /// An iterator for searching over a [`Buffer`](Buffer)'s space for a given binary search term.
-pub struct BufferSearchIter<'a,T: Buffer> {
-    buffer: &'a T,
+pub struct BufferSearchIter<'a> {
+    buffer: &'a [u8],
     term: Vec<u8>,
     offsets: Vec<usize>,
     offset_index: usize,
 }
-impl<'a,T: Buffer> BufferSearchIter<'a,T> {
+impl<'a> BufferSearchIter<'a> {
     /// Create a new search iterator over a buffer reference. Typically you'll just want to call [`Buffer::search`](Buffer::search) instead,
     /// but this essentially does the same thing.
     ///
     /// Returns an [`Error::OutOfBounds`](Error::OutOfBounds) error if the search term is longer than the buffer.
-    pub fn new<B: AsRef<[u8]>>(buffer: &'a T, term: B) -> Result<Self, Error> {
+    pub fn new<B: AsRef<[u8]>>(buffer: &'a [u8], term: B) -> Result<Self, Error> {
         let search = term.as_ref();
 
         if search.len() > buffer.len() { return Err(Error::OutOfBounds(buffer.len(),search.len())); }
@@ -806,13 +807,13 @@ impl<'a,T: Buffer> BufferSearchIter<'a,T> {
         let mut offsets = Vec::<usize>::new();
 
         for i in 0..=(buffer.len() - search.len()) {
-            if *buffer.get(i).unwrap() == search[0] { offsets.push(i); }
+            if buffer[i] == search[0] { offsets.push(i); }
         }
 
         Ok(Self { buffer: buffer, term: search.to_vec(), offsets: offsets, offset_index: 0 })
     }
 }
-impl<'a,T: Buffer> Iterator for BufferSearchIter<'a,T> {
+impl<'a> Iterator for BufferSearchIter<'a> {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -822,11 +823,7 @@ impl<'a,T: Buffer> Iterator for BufferSearchIter<'a,T> {
             let offset = self.offsets[self.offset_index];
             self.offset_index += 1;
 
-            let found_slice = match self.buffer.read(offset, self.term.len()) {
-                Ok(s) => s,
-                Err(_) => return None,
-            };
-
+            let found_slice = &self.buffer[offset..offset+self.term.len()];
             if found_slice == self.term.as_slice() { return Some(offset); }
         }
     }
