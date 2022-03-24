@@ -2,10 +2,11 @@ use super::*;
 use hex;
 
 #[test]
-fn test_buffer() {
+fn test_ptrbuffer() {
     let data = hex::decode("deadbeefabad1deadeadbea7defaced1").unwrap();
-    let buffer = Buffer::from_ref(&data);
+    let buffer = PtrBuffer::from_data(&data);
 
+    assert_eq!(buffer.as_ptr(), data.as_ptr());
     assert_eq!(buffer.len(), data.len());
     assert_eq!(buffer.as_ptr(), data.as_ptr());
     unsafe { assert_eq!(buffer.eob(), data.as_ptr().add(data.len())); }
@@ -30,16 +31,24 @@ fn test_buffer() {
 
     let struct_data = struct_result.unwrap();
     assert_eq!(struct_data.deadbe, [0xDE, 0xAD, 0xBE]);
-    unsafe { assert_eq!(struct_data.efab, 0xABEF); }
-    unsafe { assert_eq!(struct_data.ad1deade, 0xDEEA1DAD); }
+
+    let efab_unaligned = struct_data.efab;
+    assert_eq!(efab_unaligned, 0xABEF);
+
+    let ad1deade_unaligned = struct_data.ad1deade;
+    assert_eq!(ad1deade_unaligned, 0xDEEA1DAD);
 
     let struct_result = buffer.get_ref::<StructTest>(4);
     assert!(struct_result.is_ok());
 
     let struct_data = struct_result.unwrap();
     assert_eq!(struct_data.deadbe, [0xAB, 0xAD, 0x1D]);
-    unsafe { assert_eq!(struct_data.efab, 0xDEEA); }
-    unsafe { assert_eq!(struct_data.ad1deade, 0xDEA7BEAD); }
+
+    let efab_unaligned = struct_data.efab;
+    assert_eq!(efab_unaligned, 0xDEEA);
+
+    let ad1deade_unaligned = struct_data.ad1deade;
+    assert_eq!(ad1deade_unaligned, 0xDEA7BEAD);
 
     let read_result = buffer.read(8, 4);
     assert!(read_result.is_ok());
