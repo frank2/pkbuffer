@@ -118,12 +118,7 @@ pub fn slice_ref_to_mut_bytes<T>(data: &mut [T]) -> &mut [u8] {
 }
 
 /// The trait by which all buffer objects are derived.
-pub trait Buffer: Sized {
-    /// Create a new `Buffer` object with a pointer/size pair.
-    fn from_ptr(ptr: *const u8, size: usize) -> Self;
-    /// Create a new `Buffer` object with a data slice. This can either clone the data or just take a pointer of it,
-    /// see the implementation for details.
-    fn from_data<B: AsRef<[u8]>>(data: B) -> Self;
+pub trait Buffer {
     /// Get the length of this `Buffer` object.
     fn len(&self) -> usize;
     /// Get the `Buffer` object as a pointer.
@@ -595,147 +590,6 @@ pub trait Buffer: Sized {
     fn repeat(&self, n: usize) -> Vec<u8> {
         self.as_slice().repeat(n)
     }
-    /// Split this buffer into two separate buffers at the given splitpoint *mid*.
-    ///
-    /// Returns an [`Error::OutOfBounds`](Error::OutOfBounds) error if this split goes out of bounds of the buffer.
-    fn split_at(&self, mid: usize) -> Result<(Self, Self), Error> {
-        if mid > self.len() { return Err(Error::OutOfBounds(self.len(),mid)); }
-        
-        Ok((Self::from_ptr(self.as_ptr(),mid),
-            Self::from_ptr(unsafe { self.as_ptr().add(mid) }, self.len() - mid)))
-    }
-}
-
-/// A [`Buffer`](Buffer) object backed by a pointer/size pair. Use this buffer type
-/// when accessing unowned memory or arbitrary allocated memory.
-#[derive(Copy, Clone, Eq, Debug)]
-pub struct PtrBuffer {
-    pointer: *const u8,
-    size: usize,
-}
-impl PtrBuffer {
-    /// Create a new buffer object with a given *pointer* and *size*. Just make sure the pointer outlives
-    /// the object and not the other way around.
-    pub fn new(pointer: *const u8, size: usize) -> Self {
-        Self { pointer, size }
-    }
-    /// Set the new pointer of this buffer.
-    pub fn set_pointer(&mut self, pointer: *const u8) {
-        self.pointer = pointer;
-    }
-    /// Set the new size of this buffer.
-    pub fn set_size(&mut self, size: usize) {
-        self.size = size;
-    }
-    
-    /// Create a new `PtrBuffer` object within the bounds of the current buffer.
-    pub fn sub_buffer(&self, offset: usize, size: usize) -> Result<Self, Error> {
-        if offset >= self.len() {
-            return Err(Error::OutOfBounds(self.len(),offset));
-        }
-
-        if offset+size > self.len() {
-            return Err(Error::OutOfBounds(self.len(),offset+size));
-        }
-
-        unsafe { Ok(Self::new(self.as_ptr().add(offset), size)) }
-    }
-}
-impl Buffer for PtrBuffer {
-    /// Create a new `PtrBuffer` object from the given pointer/size pair.
-    fn from_ptr(ptr: *const u8, size: usize) -> Self {
-        Self::new(ptr, size)
-    }
-    /// Create a new `PtrBuffer` object from the data slice's pointer/size pair. You must
-    /// make sure the data outlives the `PtrBuffer`.
-    fn from_data<B: AsRef<[u8]>>(data: B) -> Self {
-        let buf = data.as_ref();
-        Self::from_ptr(buf.as_ptr(), buf.len())
-    }
-    /// Get the length of this `PtrBuffer` object.
-    fn len(&self) -> usize {
-        self.size
-    }
-    /// Get the `PtrBuffer` object as a pointer.
-    fn as_ptr(&self) -> *const u8 {
-        self.pointer
-    }
-    /// Get the `PtrBuffer` object as a mutable pointer.
-    fn as_mut_ptr(&mut self) -> *mut u8 {
-        self.pointer as *mut u8
-    }
-    /// Get the `PtrBuffer` object as a slice.
-    fn as_slice(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts(self.pointer, self.size) }
-    }
-    /// Get the `PtrBuffer` object as a mutable slice.
-    fn as_mut_slice(&mut self) -> &mut [u8] {
-        unsafe { std::slice::from_raw_parts_mut(self.as_mut_ptr(), self.size) }
-    }
-}
-impl PartialEq<[u8]> for PtrBuffer {
-    fn eq(&self, other: &[u8]) -> bool {
-        self.as_slice() == other
-    }
-}
-impl<const N: usize> PartialEq<[u8; N]> for PtrBuffer {
-    fn eq(&self, other: &[u8; N]) -> bool {
-        self.as_slice() == other
-    }
-}
-impl PartialEq<Vec<u8>> for PtrBuffer {
-    fn eq(&self, other: &Vec<u8>) -> bool {
-        self.as_slice() == other.as_slice()
-    }
-}
-impl<T: Buffer> PartialEq<T> for PtrBuffer {
-    fn eq(&self, other: &T) -> bool {
-        self.as_slice() == other.as_slice()
-    }
-}
-impl<Idx: std::slice::SliceIndex<[u8]>> std::ops::Index<Idx> for PtrBuffer {
-    type Output = Idx::Output;
-
-    fn index(&self, index: Idx) -> &Self::Output {
-        self.as_slice().index(index)
-    }
-}
-impl<Idx: std::slice::SliceIndex<[u8]>> std::ops::IndexMut<Idx> for PtrBuffer {
-    fn index_mut(&mut self, index: Idx) -> &mut Self::Output {
-        self.as_mut_slice().index_mut(index)
-    }
-}
-impl std::convert::AsRef<[u8]> for PtrBuffer {
-    fn as_ref(&self) -> &[u8] {
-        self.as_slice()
-    }
-}
-impl std::convert::AsMut<[u8]> for PtrBuffer {
-    fn as_mut(&mut self) -> &mut [u8] {
-        self.as_mut_slice()
-    }
-}
-impl std::hash::Hash for PtrBuffer {
-    fn hash<H>(&self, state: &mut H)
-    where
-        H: std::hash::Hasher
-    {
-        self.as_slice().hash(state);
-    }
-    fn hash_slice<H>(data: &[Self], state: &mut H)
-    where
-        H: std::hash::Hasher
-    {
-        data.iter().for_each(|x| x.hash(state));
-    }
-}
-impl std::iter::IntoIterator for PtrBuffer {
-    type Item = u8;
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.to_vec().into_iter()
-    }
 }
 
 /// An iterator for a [`Buffer`](Buffer) object.
@@ -829,6 +683,136 @@ impl<'a> Iterator for BufferSearchIter<'a> {
     }
 }
 
+/// A [`Buffer`](Buffer) object backed by a pointer/size pair. Use this buffer type
+/// when accessing unowned memory or arbitrary allocated memory.
+#[derive(Copy, Clone, Eq, Debug)]
+pub struct PtrBuffer {
+    pointer: *const u8,
+    size: usize,
+}
+impl PtrBuffer {
+    /// Create a new buffer object with a given *pointer* and *size*. Just make sure the pointer outlives
+    /// the object and not the other way around.
+    pub fn new(pointer: *const u8, size: usize) -> Self {
+        Self { pointer, size }
+    }
+    /// Set the new pointer of this buffer.
+    pub fn set_pointer(&mut self, pointer: *const u8) {
+        self.pointer = pointer;
+    }
+    /// Set the new size of this buffer.
+    pub fn set_size(&mut self, size: usize) {
+        self.size = size;
+    }
+    /// Create a new `PtrBuffer` object within the bounds of the current buffer.
+    pub fn sub_buffer(&self, offset: usize, size: usize) -> Result<Self, Error> {
+        if offset >= self.len() {
+            return Err(Error::OutOfBounds(self.len(),offset));
+        }
+
+        if offset+size > self.len() {
+            return Err(Error::OutOfBounds(self.len(),offset+size));
+        }
+
+        unsafe { Ok(Self::new(self.as_ptr().add(offset), size)) }
+    }
+    /// Split this buffer into two separate buffers at the given splitpoint *mid*.
+    ///
+    /// Returns an [`Error::OutOfBounds`](Error::OutOfBounds) error if this split goes out of bounds of the buffer.
+    pub fn split_at(&self, mid: usize) -> Result<(Self, Self), Error> {
+        if mid > self.len() { return Err(Error::OutOfBounds(self.len(),mid)); }
+        
+        Ok((Self::new(self.as_ptr(),mid),
+            Self::new(unsafe { self.as_ptr().add(mid) }, self.len() - mid)))
+    }
+}
+impl Buffer for PtrBuffer {
+    /// Get the length of this `PtrBuffer` object.
+    fn len(&self) -> usize {
+        self.size
+    }
+    /// Get the `PtrBuffer` object as a pointer.
+    fn as_ptr(&self) -> *const u8 {
+        self.pointer
+    }
+    /// Get the `PtrBuffer` object as a mutable pointer.
+    fn as_mut_ptr(&mut self) -> *mut u8 {
+        self.pointer as *mut u8
+    }
+    /// Get the `PtrBuffer` object as a slice.
+    fn as_slice(&self) -> &[u8] {
+        unsafe { std::slice::from_raw_parts(self.pointer, self.size) }
+    }
+    /// Get the `PtrBuffer` object as a mutable slice.
+    fn as_mut_slice(&mut self) -> &mut [u8] {
+        unsafe { std::slice::from_raw_parts_mut(self.as_mut_ptr(), self.size) }
+    }
+}
+impl PartialEq<[u8]> for PtrBuffer {
+    fn eq(&self, other: &[u8]) -> bool {
+        self.as_slice() == other
+    }
+}
+impl<const N: usize> PartialEq<[u8; N]> for PtrBuffer {
+    fn eq(&self, other: &[u8; N]) -> bool {
+        self.as_slice() == other
+    }
+}
+impl PartialEq<Vec<u8>> for PtrBuffer {
+    fn eq(&self, other: &Vec<u8>) -> bool {
+        self.as_slice() == other.as_slice()
+    }
+}
+impl<T: Buffer> PartialEq<T> for PtrBuffer {
+    fn eq(&self, other: &T) -> bool {
+        self.as_slice() == other.as_slice()
+    }
+}
+impl<Idx: std::slice::SliceIndex<[u8]>> std::ops::Index<Idx> for PtrBuffer {
+    type Output = Idx::Output;
+
+    fn index(&self, index: Idx) -> &Self::Output {
+        self.as_slice().index(index)
+    }
+}
+impl<Idx: std::slice::SliceIndex<[u8]>> std::ops::IndexMut<Idx> for PtrBuffer {
+    fn index_mut(&mut self, index: Idx) -> &mut Self::Output {
+        self.as_mut_slice().index_mut(index)
+    }
+}
+impl std::convert::AsRef<[u8]> for PtrBuffer {
+    fn as_ref(&self) -> &[u8] {
+        self.as_slice()
+    }
+}
+impl std::convert::AsMut<[u8]> for PtrBuffer {
+    fn as_mut(&mut self) -> &mut [u8] {
+        self.as_mut_slice()
+    }
+}
+impl std::hash::Hash for PtrBuffer {
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: std::hash::Hasher
+    {
+        self.as_slice().hash(state);
+    }
+    fn hash_slice<H>(data: &[Self], state: &mut H)
+    where
+        H: std::hash::Hasher
+    {
+        data.iter().for_each(|x| x.hash(state));
+    }
+}
+impl std::iter::IntoIterator for PtrBuffer {
+    type Item = u8;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.to_vec().into_iter()
+    }
+}
+
 /// An owned-data [`Buffer`](Buffer) object.
 #[derive(Clone, Eq, Debug)]
 pub struct VecBuffer {
@@ -838,6 +822,10 @@ impl VecBuffer {
     /// Create a new ```VecBuffer``` object, similar to [`Vec::new`](Vec::new).
     pub fn new() -> Self {
         Self { data: Vec::<u8>::new() }
+    }
+    /// Create a new `VecBuffer` object with initialization data.
+    pub fn from_data<B: AsRef<[u8]>>(data: B) -> Self {
+        Self { data: data.as_ref().to_vec() }
     }
     /// Create a new ```VecBuffer``` from the given file data.
     pub fn from_file<P: AsRef<std::path::Path>>(filename: P) -> Result<Self, Error> {
@@ -853,7 +841,7 @@ impl VecBuffer {
     pub fn with_initial_size(size: usize) -> Self {
         Self::from_data(&vec![0u8; size])
     }
-    /// Create a [PtrBuffer](PtrBuffer) object from this `VecBuffer` object.
+    /// Create a [`PtrBuffer`](PtrBuffer) object from this `VecBuffer` object.
     pub fn as_ptr_buffer(&self) -> PtrBuffer {
         PtrBuffer::new(self.data.as_ptr(), self.data.len())
     }
@@ -926,15 +914,6 @@ impl VecBuffer {
     }
 }
 impl Buffer for VecBuffer {
-    /// Create a new `VecBuffer` object from a pointer/size pair. This creates and clones a slice
-    /// object from the pointer/size pair.
-    fn from_ptr(ptr: *const u8, size: usize) -> Self {
-        Self::from_data(unsafe { std::slice::from_raw_parts(ptr, size) })
-    }
-    /// Clone the data into a new `VecBuffer` object.
-    fn from_data<B: AsRef<[u8]>>(data: B) -> Self {
-        Self { data: data.as_ref().to_vec() }
-    }
     /// Get the length of this `VecBuffer` object.
     fn len(&self) -> usize {
         self.data.len()

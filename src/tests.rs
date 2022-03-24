@@ -4,7 +4,7 @@ use hex;
 #[test]
 fn test_ptrbuffer() {
     let data = hex::decode("deadbeefabad1deadeadbea7defaced1").unwrap();
-    let buffer = PtrBuffer::from_data(&data);
+    let buffer = PtrBuffer::new(data.as_ptr(), data.len());
 
     assert_eq!(buffer.as_ptr(), data.as_ptr());
     assert_eq!(buffer.len(), data.len());
