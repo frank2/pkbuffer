@@ -1,4 +1,4 @@
-//! [PKBuffer](https://github.com/frank2/exe-rs) is a library built for arbitrary casting of data structures
+//! [PKBuffer](https://github.com/frank2/pkbuffer) is a library built for arbitrary casting of data structures
 //! onto segments of memory! This includes sections of unowned memory, such as examining the headers of a
 //! currently running executable. It creates an interface for reading and writing data structures to an
 //! arbitrary buffer of bytes.
