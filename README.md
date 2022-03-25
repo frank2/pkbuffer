@@ -10,6 +10,7 @@ You can read the documentation [here](https://docs.rs/pkbuffer/), and see variou
 
 ### Bugfixes
 * `IntoIter` was returning references when it should be returning values, this is fixed.
+* `Error` now implements `Send` and `Sync`.
 ### Features
 * `Buffer` is now a trait, which allows the featureset of both `VecBuffer` and the new `PtrBuffer` to be unified.
 * `Error` now makes use of the `into()` function with regards to `std::io::Error`.
