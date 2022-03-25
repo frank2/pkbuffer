@@ -84,6 +84,8 @@ impl std::convert::From<std::io::Error> for Error {
         Self::IoError(io_err)
     }
 }
+unsafe impl Send for Error {}
+unsafe impl Sync for Error {}
 
 /// Convert the given reference of type ```T``` to a [`u8`](u8) [slice](slice).
 pub fn ref_to_bytes<T>(data: &T) -> &[u8] {
@@ -873,10 +875,6 @@ impl VecBuffer {
     /// Truncate the size of the buffer to the given *len*.
     pub fn truncate(&mut self, len: usize) {
         self.data.truncate(len);
-    }
-    /// Extend this buffer from the given [`u8`](u8) [slice](slice).
-    pub fn extend_from_data<B: AsRef<[u8]>>(&mut self, other: B) {
-        self.data.extend_from_slice(other.as_ref());
     }
     /// Deduplicate the values in this buffer. See [`Vec::dedup`](Vec::dedup).
     pub fn dedup(&mut self) {
