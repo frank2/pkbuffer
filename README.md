@@ -7,26 +7,7 @@ You can read the documentation [here](https://docs.rs/pkbuffer/), and see variou
 
 ## 0.3.1
 ### Bugfixes
-* fixed the undefined behavior of `ref_to_bytes` and similar functions by using the [bytemuck](https://crates.io/crate/bytemuck) library, thanks to @[repnop](https://github.com/repnop) for reporting this! This changes the generic signatures to have the [bytemuck](https://crates.io/crate/bytemuck) trait `Pod` (e.g., `T: Pod`) in the following functions:
-    * `ref_to_bytes`
-    * `slice_ref_to_bytes`
-    * `ref_to_mut_bytes`
-    * `slice_ref_to_mut_bytes`
-    * `Buffer::get_ref`
-    * `Buffer::get_mut_ref`
-    * `Buffer::make_mut_ref`
-    * `Buffer::write_ref`
-    * `Buffer::write_slice_ref`
-    * `Buffer::start_with_ref`
-    * `Buffer::start_with_slice_ref`
-    * `Buffer::end_with_ref`
-    * `Buffer::end_with_slice_ref`
-    * `Buffer::search_ref`
-    * `Buffer::search_slice_ref`
-    * `Buffer::contains_ref`
-    * `Buffer::contains_slice_ref`
-    * `VecBuffer::append_ref`
-    * `VecBuffer::append_slice_ref`
+* fixed the undefined behavior of `ref_to_bytes` and similar functions by using the [bytemuck](https://crates.io/crate/bytemuck) library, thanks to @[repnop](https://github.com/repnop) for reporting this! This changes the generic signatures to have the [bytemuck](https://crates.io/crate/bytemuck) trait `Pod` (e.g., `T: Pod`) in multiple functions. See the docs for more details!
     
 ## 0.3.0
 **This version makes major changes!** The `Buffer` struct is now a trait, and the struct has been converted to `PtrBuffer`. This simplifies the code and unifies the featureset without having to repeat code all over the place. Additionally, it gives the user the ability to define their own `Buffer` object.
