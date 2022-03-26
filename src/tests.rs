@@ -19,11 +19,17 @@ fn test_ptrbuffer() {
     assert!(error_result.is_err());
 
     #[repr(packed)]
-    // #[derive(Copy, Clone, Debug)]
+    #[derive(Copy, Clone, Debug)]
     struct StructTest {
         deadbe: [u8; 3],
         efab: u16,
         ad1deade: u32,
+    }
+    unsafe impl Pod for StructTest { }
+    unsafe impl Zeroable for StructTest {
+        fn zeroed() -> Self {
+            Self { deadbe: [0,0,0], efab: 0, ad1deade: 0 }
+        }
     }
 
     let struct_result = buffer.get_ref::<StructTest>(0);
@@ -89,9 +95,9 @@ fn test_ptrbuffer() {
     assert!(search_results.unwrap().next().is_some());
 
     assert!(buffer.contains([0xDE, 0xAD, 0xBE, 0xA7]));
-    assert!(!buffer.contains_ref::<u32>(&0xFACEBABE));
-    assert!(buffer.contains_ref::<u32>(&0xEA1DADAB));
-    assert!(buffer.contains_slice_ref::<u32>(&[0xA7BEADDE, 0xD1CEFADE]));
+    assert!(!buffer.contains_ref::<u32>(&0xFACEBABE).unwrap());
+    assert!(buffer.contains_ref::<u32>(&0xEA1DADAB).unwrap());
+    assert!(buffer.contains_slice_ref::<u32>(&[0xA7BEADDE, 0xD1CEFADE]).unwrap());
     
     assert_eq!(buffer[0x8..0xC], [0xDE, 0xAD, 0xBE, 0xA7]);
 }
@@ -105,7 +111,7 @@ fn test_vecbuffer() {
     assert!(!buffer.contains([0xDE, 0xAD, 0xBE, 0xEF]));
 
     assert!(buffer.write_ref::<u32>(4, &0xEFBEADDE).is_ok());
-    assert!(buffer.contains_ref::<u32>(&0xEFBEADDE));
+    assert!(buffer.contains_ref::<u32>(&0xEFBEADDE).unwrap());
 
     buffer.append(&vec![0xAB, 0xAD, 0x1D, 0xEA]);
     assert!(buffer.contains([0xAB, 0xAD, 0x1D, 0xEA]));
