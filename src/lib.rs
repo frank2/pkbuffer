@@ -5,13 +5,18 @@
 //!
 //! For example:
 //! ```rust
-//! use pkbuffer::{Buffer, VecBuffer};
+//! use pkbuffer::{Buffer, VecBuffer, Pod, Zeroable};
 //!
 //! #[repr(packed)]
+//! #[derive(Copy, Clone)]
 //! struct Object {
 //!    byte: u8,
 //!    word: u16,
 //!    dword: u32,
+//! }
+//! unsafe impl Pod for Object { }
+//! unsafe impl Zeroable for Object {
+//!    fn zeroed() -> Self { Self { byte: 0, word: 0, dword: 0 } }
 //! }
 //!
 //! let mut buffer = VecBuffer::with_initial_size(std::mem::size_of::<Object>());
@@ -22,6 +27,10 @@
 //!
 //! assert_eq!(buffer, [1,2,3,4,5,6,7]);
 //! ```
+//!
+//! Backing the conversion of objects and slices is the [bytemuck](bytemuck) library.
+//! To yank objects out of a given buffer object, one must implement the [`Pod`](Pod)
+//! trait on them. See the [bytemuck](bytemuck) documentation for more details.
 //!
 //! Buffer objects are derived from the [`Buffer`](Buffer) trait. This trait
 //! implements much functionality of slice objects as well as data casting
@@ -48,11 +57,16 @@
 #[cfg(test)]
 mod tests;
 
+pub use bytemuck::{Pod, Zeroable};
+use bytemuck::*;
+
 /// Errors produced by the library.
 #[derive(Debug)]
 pub enum Error {
     /// An error produced by [`std::io::Error`](std::io::Error).
     IoError(std::io::Error),
+    /// An error produced by the [bytemuck](bytemuck) library.
+    BytemuckError(PodCastError),
     /// The operation went out of bounds.
     ///
     /// The first arg represents the current boundary, the second arg
@@ -66,6 +80,7 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::IoError(io) => write!(f, "i/o error: {}", io.to_string()),
+            Self::BytemuckError(bytemuck) => write!(f, "bytemuck error: {}", bytemuck.to_string()),
             Self::OutOfBounds(expected,got) => write!(f, "out of bounds: boundary is {:#x}, got {:#x} instead", expected, got),
             Self::InvalidPointer(ptr) => write!(f, "invalid pointer: {:p}", ptr),
         }
@@ -84,39 +99,42 @@ impl std::convert::From<std::io::Error> for Error {
         Self::IoError(io_err)
     }
 }
+impl std::convert::From<PodCastError> for Error {
+    fn from(bm_err: PodCastError) -> Self {
+        Self::BytemuckError(bm_err)
+    }
+}
 unsafe impl Send for Error {}
 unsafe impl Sync for Error {}
 
 /// Convert the given reference of type ```T``` to a [`u8`](u8) [slice](slice).
-pub fn ref_to_bytes<T>(data: &T) -> &[u8] {
-    let ptr = data as *const T as *const u8;
-    let size = std::mem::size_of::<T>();
-
-    unsafe { std::slice::from_raw_parts(ptr, size) }
+///
+/// `T` requires the trait [`Pod`](Pod) from the [bytemuck](bytemuck) library.
+pub fn ref_to_bytes<T: Pod>(data: &T) -> Result<&[u8], Error> {
+    if std::mem::size_of::<T>() == 0 { Ok(&[]) }
+    else { let result = try_cast_slice::<T, u8>(core::slice::from_ref(data))?; Ok(result) }
 }
 
 /// Convert the given slice reference of type ```T``` to a [`u8`](u8) [slice](slice).
-pub fn slice_ref_to_bytes<T>(data: &[T]) -> &[u8] {
-    let ptr = data.as_ptr() as *const u8;
-    let size = std::mem::size_of::<T>() * data.len();
-
-    unsafe { std::slice::from_raw_parts(ptr, size) }
+///
+/// `T` requires the trait [`Pod`](Pod) from the [bytemuck](bytemuck) library.
+pub fn slice_ref_to_bytes<T: Pod>(data: &[T]) -> Result<&[u8], Error> {
+    let result = try_cast_slice::<T, u8>(data)?; Ok(result)
 }
 
 /// Convert the given reference of type ```T``` to a mutable [`u8`](u8) [slice](slice).
-pub fn ref_to_mut_bytes<T>(data: &mut T) -> &mut [u8] {
-    let ptr = data as *mut T as *mut u8;
-    let size = std::mem::size_of::<T>();
-
-    unsafe { std::slice::from_raw_parts_mut(ptr, size) }
+///
+/// `T` requires the trait [`Pod`](Pod) from the [bytemuck](bytemuck) library.
+pub fn ref_to_mut_bytes<T: Pod>(data: &mut T) -> Result<&mut [u8], Error> {
+    if std::mem::size_of::<T>() == 0 { Ok(&mut []) }
+    else { let result = try_cast_slice_mut::<T, u8>(core::slice::from_mut(data))?; Ok(result) }
 }
 
 /// Convert the given slice reference of type ```T``` to a mutable [`u8`](u8) [slice](slice).
-pub fn slice_ref_to_mut_bytes<T>(data: &mut [T]) -> &mut [u8] {
-    let ptr = data.as_mut_ptr() as *mut u8;
-    let size = std::mem::size_of::<T>() * data.len();
-
-    unsafe { std::slice::from_raw_parts_mut(ptr, size) }
+///
+/// `T` requires the trait [`Pod`](Pod) from the [bytemuck](bytemuck) library.
+pub fn slice_ref_to_mut_bytes<T: Pod>(data: &mut [T]) -> Result<&mut [u8], Error> {
+    let result = try_cast_slice_mut::<T, u8>(data)?; Ok(result)
 }
 
 /// The trait by which all buffer objects are derived.
@@ -242,7 +260,7 @@ pub trait Buffer {
     /// Get a reference to a given object within the buffer. Typically the main interface by which objects are retrieved.
     ///
     /// Returns an [`Error::OutOfBounds`](Error::OutOfBounds) error if the offset or the object's size plus
-    /// the offset results in an out-of-bounds event.
+    /// the offset results in an out-of-bounds event. `T` is required to be of the [`Pod`](Pod) trait from [bytemuck](bytemuck).
     ///
     /// # Example
     /// ```rust
@@ -255,32 +273,34 @@ pub trait Buffer {
     /// assert!(dword.is_ok());
     /// assert_eq!(*dword.unwrap(), 0xEFBEADDE);
     /// ```
-    fn get_ref<T>(&self, offset: usize) -> Result<&T, Error> {
-        let ptr = self.offset_to_ptr(offset)?;
+    fn get_ref<T: Pod>(&self, offset: usize) -> Result<&T, Error> {
         let size = std::mem::size_of::<T>();
 
         if offset+size > self.len() {
             return Err(Error::OutOfBounds(self.len(),offset+size));
         }
 
-        unsafe { Ok(&*(ptr as *const T)) }
+        let bytes = self.get_slice_ref::<u8>(offset, size)?;
+        let result = try_from_bytes::<T>(bytes)?;
+        Ok(result)
     }
     /// Get a mutable reference to a given object within the buffer. See [`Buffer::get_ref`](Buffer::get_ref).
-    fn get_mut_ref<T>(&mut self, offset: usize) -> Result<&mut T, Error> {
-        let ptr = self.offset_to_mut_ptr(offset)?;
+    fn get_mut_ref<T: Pod>(&mut self, offset: usize) -> Result<&mut T, Error> {
         let size = std::mem::size_of::<T>();
 
         if offset+size > self.len() {
             return Err(Error::OutOfBounds(self.len(),offset+size));
         }
 
-        unsafe { Ok(&mut *(ptr as *const T as *mut T)) }
+        let bytes = self.get_mut_slice_ref::<u8>(offset, size)?;
+        let result = try_from_bytes_mut::<T>(bytes)?;
+        Ok(result)
     }
     /// Convert a given reference to a mutable reference within the buffer.
     ///
     /// Returns an [`Error::InvalidPointer`](Error::InvalidPointer) error if the reference did not
     /// originate from this buffer.
-    fn make_mut_ref<T>(&mut self, data: &T) -> Result<&mut T, Error> {
+    fn make_mut_ref<T: Pod>(&mut self, data: &T) -> Result<&mut T, Error> {
         let offset = self.ref_to_offset(data)?;
         self.get_mut_ref::<T>(offset)
     }
@@ -363,14 +383,16 @@ pub trait Buffer {
     /// Write a given object of type *T* to the given buffer at the given *offset*.
     ///
     /// Returns an [`Error::OutOfBounds`](Error::OutOfBounds) error if the write runs out of boundaries.
-    fn write_ref<T>(&mut self, offset: usize, data: &T) -> Result<(), Error> {
-        self.write(offset, ref_to_bytes::<T>(data))
+    fn write_ref<T: Pod>(&mut self, offset: usize, data: &T) -> Result<(), Error> {
+        let bytes = ref_to_bytes::<T>(data)?;
+        self.write(offset, bytes)
     }
     /// Write a given slice object of type *T* to the given buffer at the given *offset*.
     ///
     /// Returns an [`Error::OutOfBounds`](Error::OutOfBounds) error if the write runs out of boundaries.
-    fn write_slice_ref<T>(&mut self, offset: usize, data: &[T]) -> Result<(), Error> {
-        self.write(offset, slice_ref_to_bytes::<T>(data))
+    fn write_slice_ref<T: Pod>(&mut self, offset: usize, data: &[T]) -> Result<(), Error> {
+        let bytes = slice_ref_to_bytes::<T>(data)?;
+        self.write(offset, bytes)
     }
     /// Start the buffer object with the given byte data.
     ///
@@ -381,14 +403,16 @@ pub trait Buffer {
     /// Start the buffer with the given reference data.
     ///
     /// Returns an [`Error::OutOfBounds`](Error::OutOfBounds) error if the write runs out of boundaries.
-    fn start_with_ref<T>(&mut self, data: &T) -> Result<(), Error> {
-        self.start_with(ref_to_bytes::<T>(data))
+    fn start_with_ref<T: Pod>(&mut self, data: &T) -> Result<(), Error> {
+        let bytes = ref_to_bytes::<T>(data)?;
+        self.start_with(bytes)
     }
     /// Start the buffer with the given slice reference data.
     ///
     /// Returns an [`Error::OutOfBounds`](Error::OutOfBounds) error if the write runs out of boundaries.
-    fn start_with_slice_ref<T>(&mut self, data: &[T]) -> Result<(), Error> {
-        self.start_with(slice_ref_to_bytes::<T>(data))
+    fn start_with_slice_ref<T: Pod>(&mut self, data: &[T]) -> Result<(), Error> {
+        let bytes = slice_ref_to_bytes::<T>(data)?;
+        self.start_with(bytes)
     }
     /// End the buffer object with the given byte data.
     ///
@@ -403,14 +427,16 @@ pub trait Buffer {
     /// End the buffer with the given reference data.
     ///
     /// Returns an [`Error::OutOfBounds`](Error::OutOfBounds) error if the write runs out of boundaries.
-    fn end_with_ref<T>(&mut self, data: &T) -> Result<(), Error> {
-        self.end_with(ref_to_bytes::<T>(data))
+    fn end_with_ref<T: Pod>(&mut self, data: &T) -> Result<(), Error> {
+        let bytes = ref_to_bytes::<T>(data)?;
+        self.end_with(bytes)
     }
     /// End the buffer with the given slice reference data.
     ///
     /// Returns an [`Error::OutOfBounds`](Error::OutOfBounds) error if the write runs out of boundaries.
-    fn end_with_slice_ref<T>(&mut self, data: &[T]) -> Result<(), Error> {
-        self.end_with(slice_ref_to_bytes::<T>(data))
+    fn end_with_slice_ref<T: Pod>(&mut self, data: &[T]) -> Result<(), Error> {
+        let bytes = slice_ref_to_bytes::<T>(data)?;
+        self.end_with(bytes)
     }
     /// Search for the given [`u8`](u8) [slice](slice) *data* within the given buffer.
     ///
@@ -444,13 +470,15 @@ pub trait Buffer {
     }
     /// Search for the following reference of type *T*. This converts the object into a [`u8`](u8) [slice](slice).
     /// See [`Buffer::search`](Buffer::search).
-    fn search_ref<'a, T>(&'a self, data: &T) -> Result<BufferSearchIter<'a>, Error> {
-        self.search(ref_to_bytes::<T>(data))
+    fn search_ref<'a, T: Pod>(&'a self, data: &T) -> Result<BufferSearchIter<'a>, Error> {
+        let bytes = ref_to_bytes::<T>(data)?;
+        self.search(bytes)
     }
     /// Search for the following slice reference of type *T*. This converts the slice into a [`u8`](u8) [slice](slice).
     /// See [`Buffer::search`](Buffer::search).
-    fn search_slice_ref<'a, T>(&'a self, data: &[T]) -> Result<BufferSearchIter<'a>, Error> {
-        self.search(slice_ref_to_bytes::<T>(data))
+    fn search_slice_ref<'a, T: Pod>(&'a self, data: &[T]) -> Result<BufferSearchIter<'a>, Error> {
+        let bytes = slice_ref_to_bytes::<T>(data)?;
+        self.search(bytes)
     }
     /// Check if this buffer contains the following [`u8`](u8) [slice](slice) sequence.
     fn contains<B: AsRef<[u8]>>(&self, data: B) -> bool {
@@ -470,12 +498,14 @@ pub trait Buffer {
         offset == buf.len()
     }
     /// Check if this buffer contains the following object of type *T*.
-    fn contains_ref<T>(&self, data: &T) -> bool {
-        self.contains(ref_to_bytes::<T>(data))
+    fn contains_ref<T: Pod>(&self, data: &T) -> Result<bool, Error> {
+        let bytes = ref_to_bytes::<T>(data)?;
+        Ok(self.contains(bytes))
     }
     /// Check if this buffer contains the following slice of type *T*.
-    fn contains_slice_ref<T>(&self, data: &[T]) -> bool {
-        self.contains(slice_ref_to_bytes::<T>(data))
+    fn contains_slice_ref<T: Pod>(&self, data: &[T]) -> Result<bool, Error> {
+        let bytes = slice_ref_to_bytes::<T>(data)?;
+        Ok(self.contains(bytes))
     }
     /// Check if this buffer starts with the byte sequence *needle*. See [`slice::starts_with`](slice::starts_with).
     fn starts_with<B: AsRef<[u8]>>(&self, needle: B) -> bool {
@@ -822,12 +852,14 @@ impl VecBuffer {
         self.data.append(&mut data.as_ref().to_vec());
     }
     /// Appends the given reference to the end of the buffer. This resizes and expands the underlying vector.
-    pub fn append_ref<T>(&mut self, data: &T) {
-        self.append(ref_to_bytes::<T>(data));
+    pub fn append_ref<T: Pod>(&mut self, data: &T) -> Result<(), Error> {
+        let bytes = ref_to_bytes::<T>(data)?;
+        self.append(bytes); Ok(())
     }
     /// Appends the given slice reference to the end of the buffer. This resizes and expands the underlying vector.
-    pub fn append_slice_ref<T>(&mut self, data: &[T]) {
-        self.append(slice_ref_to_bytes::<T>(data));
+    pub fn append_slice_ref<T: Pod>(&mut self, data: &[T]) -> Result<(), Error> {
+        let bytes = slice_ref_to_bytes::<T>(data)?;
+        self.append(bytes); Ok(())
     }
     /// Insert a given *element* at the given *offset*, expanding the vector by one. See [`Vec::insert`](Vec::insert).
     pub fn insert(&mut self, offset: usize, element: u8) {
