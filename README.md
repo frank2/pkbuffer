@@ -7,7 +7,7 @@ You can read the documentation [here](https://docs.rs/pkbuffer/), and see variou
 
 ## 0.3.1
 ### Bugfixes
-* fixed the undefined behavior of `ref_to_bytes` and similar functions by using the [bytemuck](https://crates.io/crate/bytemuck) library, thanks to @repnop for reporting this! This changes the generic signatures to have the [bytemuck](https://crates.io/crate/bytemuck) trait `Pod` (e.g., `T: Pod`) in the following functions:
+* fixed the undefined behavior of `ref_to_bytes` and similar functions by using the [bytemuck](https://crates.io/crate/bytemuck) library, thanks to @[repnop](https://github.com/repnop) for reporting this! This changes the generic signatures to have the [bytemuck](https://crates.io/crate/bytemuck) trait `Pod` (e.g., `T: Pod`) in the following functions:
     * `ref_to_bytes`
     * `slice_ref_to_bytes`
     * `ref_to_mut_bytes`
