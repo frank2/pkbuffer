@@ -6,12 +6,16 @@ version = "0.3.0"
 authors = ["frank2@dc949.org"]
 edition = "2018"
 license = "GPL-3.0"
-keywords = ["buffer", "memory", "casting"]
+keywords = ["buffer", "memory", "casting", "bytes"]
 readme = "README.md"
 exclude = ["*~", "notes.org"]
 documentation = "https://docs.rs/pkbuffer"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[dependencies]
+bytemuck = "1.8.0"
+
 [dev-dependencies]
 hex = "0.4.3"
+bytemuck = "1.8.0"
