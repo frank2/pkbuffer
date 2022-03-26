@@ -30,7 +30,9 @@
 //!
 //! Backing the conversion of objects and slices is the [bytemuck](bytemuck) library.
 //! To yank objects out of a given buffer object, one must implement the [`Pod`](Pod)
-//! trait on them. See the [bytemuck](bytemuck) documentation for more details.
+//! trait on them. This trait has been exported from [bytemuck](bytemuck) for convenience.
+//! You might also be interested in [bytemuck_derive](https://crates.io/crate/bytemuck_derive).
+//! See the [bytemuck](bytemuck) documentation for more details.
 //!
 //! Buffer objects are derived from the [`Buffer`](Buffer) trait. This trait
 //! implements much functionality of slice objects as well as data casting
