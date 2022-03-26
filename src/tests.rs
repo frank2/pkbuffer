@@ -107,7 +107,7 @@ fn test_vecbuffer() {
     assert!(buffer.write_ref::<u32>(4, &0xEFBEADDE).is_ok());
     assert!(buffer.contains_ref::<u32>(&0xEFBEADDE));
 
-    buffer.append(&mut vec![0xAB, 0xAD, 0x1D, 0xEA]);
+    buffer.append(&vec![0xAB, 0xAD, 0x1D, 0xEA]);
     assert!(buffer.contains([0xAB, 0xAD, 0x1D, 0xEA]));
 
     let rhs = buffer.split_off(0x8);
@@ -116,7 +116,7 @@ fn test_vecbuffer() {
     buffer.resize(0xC, 0x00);
     assert!(buffer.write_ref::<u32>(0x8, &0x74EEFFC0).is_ok());
 
-    buffer.extend_from_data(&rhs);
+    buffer.append(&rhs);
     assert!(buffer.contains([0xAB, 0xAD, 0x1D, 0xEA]));
     assert!(buffer.contains([0xC0, 0xFF, 0xEE, 0x74]));
 
