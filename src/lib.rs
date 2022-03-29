@@ -5,47 +5,14 @@
 //!
 //! For example:
 //! ```rust
-//! use bytemuck_derive::{Pod, Zeroable};
-//! use hex;
-//! use pkbuffer::{Buffer, VecBuffer};
-//!
-//! #[repr(C)]
-//! #[derive(Copy, Clone, Pod, Zeroable)]
-//! struct Object {
-//!    deadbeef: u32,
-//!    abad1dea: u32,
-//!    defaced1: u32,
-//! }
-//!
-//! let mut buffer = VecBuffer::with_initial_size(std::mem::size_of::<Object>());
-//! let object = buffer.get_mut_ref::<Object>(0).unwrap();
-//! object.deadbeef = 0xEFBEADDE;
-//! object.abad1dea = 0xEA1DADAB;
-//! object.defaced1 = 0xD1CEFADE;
-//!
-//! assert_eq!(buffer, hex::decode("deadbeefabad1deadefaced1").unwrap());
-//! ```
-//!
-//! Backing the conversion of objects and slices is the [bytemuck](bytemuck) library.
-//! To yank objects out of a given buffer object, one must implement the [`Pod`](Pod)
-//! trait on them. This trait has been exported from [bytemuck](bytemuck) for convenience.
-//!
-//! Getting data from `#[repr(packed)]` structures is technically supported by
-//! [bytemuck](bytemuck), but unfortunately is not supported by the derive trait. Here's
-//! an example of how to deal with that:
-//! ```rust
-//! use pkbuffer::{Buffer, VecBuffer, Pod, Zeroable};
+//! use pkbuffer::{Buffer, VecBuffer, Castable};
 //!
 //! #[repr(packed)]
-//! #[derive(Copy, Clone)]
+//! #[derive(Copy, Clone, Castable)]
 //! struct Object {
 //!    byte: u8,
 //!    word: u16,
 //!    dword: u32,
-//! }
-//! unsafe impl Pod for Object { }
-//! unsafe impl Zeroable for Object {
-//!    fn zeroed() -> Self { Self { byte: 0, word: 0, dword: 0 } }
 //! }
 //!
 //! let mut buffer = VecBuffer::with_initial_size(std::mem::size_of::<Object>());
@@ -56,6 +23,10 @@
 //!
 //! assert_eq!(buffer, [1,2,3,4,5,6,7]);
 //! ```
+//!
+//! Objects retrieved from [`Buffer`](Buffer) objects must implement the [`Castable`](castable::Castable)
+//! trait. This trait ensures that a series of attributes are applied to the object. For
+//! convenience, a [derive macro](pkbuffer_derive::Castable) is provided.
 //!
 //! Buffer objects are derived from the [`Buffer`](Buffer) trait. This trait
 //! implements much functionality of slice objects as well as data casting
@@ -93,6 +64,8 @@ pub use ptr::*;
 
 mod vec;
 pub use vec::*;
+
+pub use pkbuffer_derive::*;
 
 /// Errors produced by the library.
 #[derive(Debug)]
@@ -162,16 +135,12 @@ pub fn slice_ref_to_bytes<T: Castable>(data: &[T]) -> Result<&[u8], Error> {
 }
 
 /// Convert the given reference of type ```T``` to a mutable [`u8`](u8) [slice](slice).
-///
-/// `T` requires the trait [`Castable`](Castable) from the [bytemuck](bytemuck) library.
 pub fn ref_to_mut_bytes<T: Castable>(data: &mut T) -> Result<&mut [u8], Error> {
     if std::mem::size_of::<T>() == 0 { Ok(&mut []) }
     else { slice_ref_to_mut_bytes::<T>(std::slice::from_mut(data)) }
 }
 
 /// Convert the given slice reference of type ```T``` to a mutable [`u8`](u8) [slice](slice).
-///
-/// `T` requires the trait [`Castable`](Castable) from the [bytemuck](bytemuck) library.
 pub fn slice_ref_to_mut_bytes<T: Castable>(data: &mut [T]) -> Result<&mut [u8], Error> {
     if std::mem::size_of::<T>() == 0 {
         Err(Error::ZeroSizedType)

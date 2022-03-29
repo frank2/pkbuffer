@@ -123,7 +123,7 @@ pub trait Buffer {
     /// Get a reference to a given object within the buffer. Typically the main interface by which objects are retrieved.
     ///
     /// Returns an [`Error::OutOfBounds`](Error::OutOfBounds) error if the offset or the object's size plus
-    /// the offset results in an out-of-bounds event. `T` is required to be of the [`Castable`](Castable) trait from [bytemuck](bytemuck).
+    /// the offset results in an out-of-bounds event.
     ///
     /// # Example
     /// ```rust
@@ -192,7 +192,7 @@ pub trait Buffer {
     /// This is an unsafe function because it gets a reference that is not aligned to a proper boundary, which
     /// can trigger undefined behavior on some processors. If you're unsure of the alignment situation on your
     /// target processor, or unsure of the alignment situation in your data, it's best to use
-    /// [`Buffer::get_ref`](Buffer::get_ref) instead.
+    /// [`Buffer::get_mut_ref`](Buffer::get_mut_ref) instead.
     unsafe fn get_mut_ref_unaligned<T>(&mut self, offset: usize) -> Result<&mut T, Error> {
         let ptr = self.offset_to_mut_ptr(offset)?;
         let size = std::mem::size_of::<T>();
@@ -234,7 +234,7 @@ pub trait Buffer {
     /// Convert a given reference to a mutable reference without alignment guarantees.
     ///
     /// You should not do this unless you know your alignment situation. See
-    /// [`Buffer::get_re_unalignedf`](Buffer::get_ref_unaligned) for an explanation as to why.
+    /// [`Buffer::get_mut_ref_unaligned`](Buffer::get_mut_ref_unaligned) for an explanation as to why.
     unsafe fn make_mut_ref_unaligned<T>(&mut self, data: &T) -> Result<&mut T, Error> {
         let offset = self.ref_to_offset(data)?;
         self.get_mut_ref_unaligned::<T>(offset)
@@ -242,7 +242,7 @@ pub trait Buffer {
     /// Convert an object to a mutable reference regardless of potential alignment issues.
     ///
     /// You should not do this unless you know your alignment situation. See
-    /// [`Buffer::get_ref_unaligned`](Buffer::get_ref_unaligned) for an explanation as to why.
+    /// [`Buffer::make_mut_ref_unaligned`](Buffer::make_mut_ref_unaligned) for an explanation as to why.
     unsafe fn force_make_mut_ref<T: Castable>(&mut self, data: &T) -> Result<&mut T, Error> {
         // I'm unsure why the borrow checker is annoyed at this code, attempting to go out
         // of scope of the returned error (or even explicitly dropping it) still doesn't let
@@ -318,7 +318,7 @@ pub trait Buffer {
     /// Get a slice reference regardless of potential alignment issues.
     ///
     /// It is not recommended you use this function if you're unaware of the alignment
-    /// situation of your processor or data. See [`Buffer::get_ref`](Buffer::get_ref)
+    /// situation of your processor or data. See [`Buffer::get_slice_ref_unaligned`](Buffer::get_slice_ref_unaligned)
     /// for more details.
     unsafe fn force_get_slice_ref<T: Castable>(&self, offset: usize, size: usize) -> Result<&[T], Error> {
         match self.get_slice_ref::<T>(offset, size) {
@@ -363,7 +363,7 @@ pub trait Buffer {
     ///
     /// It is not recommended you use this function if you're unaware of the alignment
     /// situation of your processor or data. See
-    /// [`Buffer::get_mut_slice_ref_unaligned`](Buffer::get_mut_slice_ref_unaligned) for more details.
+    /// [`Buffer::get_slice_ref_unaligned`](Buffer::get_slice_ref_unaligned) for more details.
     unsafe fn force_get_mut_slice_ref<T: Castable>(&mut self, offset: usize, size: usize) -> Result<&mut [T], Error> {
         // I'm unsure why the borrow checker is annoyed at this code, attempting to go out
         // of scope of the returned error (or even explicitly dropping it) still doesn't let
@@ -390,7 +390,7 @@ pub trait Buffer {
     /// Convert a given slice reference to a mutable slice reference without alignment guarantees.
     ///
     /// You should not do this unless you know your alignment situation. See
-    /// [`Buffer::get_mut_slice_ref_unaligned`](Buffer::get_mut_slice_ref_unaligned) for an explanation as to why.
+    /// [`Buffer::get_slice_ref_unaligned`](Buffer::get_slice_ref_unaligned) for an explanation as to why.
     unsafe fn make_mut_slice_ref_unaligned<T>(&mut self, data: &[T]) -> Result<&mut [T], Error> {
         let offset = self.slice_ref_to_offset(data)?;
         self.get_mut_slice_ref_unaligned::<T>(offset, data.len())
@@ -398,7 +398,7 @@ pub trait Buffer {
     /// Convert an object to a mutable reference regardless of potential alignment issues.
     ///
     /// You should not do this unless you know your alignment situation. See
-    /// [`Buffer::get_mut_slice_ref_unaligned`](Buffer::get_mut_slice_ref_unaligned) for an explanation as to why.
+    /// [`Buffer::get_slice_ref_unaligned`](Buffer::get_slice_ref_unaligned) for an explanation as to why.
     unsafe fn force_make_mut_slice_ref<T: Castable>(&mut self, data: &[T]) -> Result<&mut [T], Error> {
         // I'm unsure why the borrow checker is annoyed at this code, attempting to go out
         // of scope of the returned error (or even explicitly dropping it) still doesn't let

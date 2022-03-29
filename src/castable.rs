@@ -19,6 +19,7 @@ use core::arch::x86_64;
 /// * The type does not contain any padding bytes.
 /// * The type's members are also `Castable`.
 /// * The type is `#[repr(C)]`, `#[repr(transparent)]`, `#[repr(packed)]` or `#[repr(align)]`.
+/// * The type must not use generics.
 ///
 /// If you've used the [bytemuck](https://crates.io/crate/bytemuck) library,
 /// these rules will probably seem familiar. You can automatically guarantee these
