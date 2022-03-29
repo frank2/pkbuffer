@@ -5,10 +5,14 @@ You can read the documentation [here](https://docs.rs/pkbuffer/), and see variou
 
 # Changelog
 
-## 0.3.1
+## 0.4.0
 ### Bugfixes
-* fixed the undefined behavior of `ref_to_bytes` and similar functions by using the [bytemuck](https://crates.io/crate/bytemuck) library, thanks to @[repnop](https://github.com/repnop) for reporting this! This changes the generic signatures to have the [bytemuck](https://crates.io/crate/bytemuck) trait `Pod` (e.g., `T: Pod`) in multiple functions. See the docs for more details!
-    
+* fixed the undefined behavior of `ref_to_bytes` and similar functions by taking inspiration from [bytemuck](https://crates.io/crate/bytemuck) and actively preventing undefined behavior, thanks to @[repnop](https://github.com/repnop) for reporting this! this changes the generic signatures to have the trait `Castable` (e.g., `T: Castable`) in multiple functions. see the docs for more details!
+### Features
+* objects acquired by `get_ref` and similar functions now require the `Castable` trait. this guarantees the safety of types acquired from byte buffers, see the docs for more details.
+* with the addition of `Castable` comes alignment awareness. however, there are some cases (such as with PE files) where reading unaligned structures is necessary. as a result, `Buffer::get_ref_unaligned`, `Buffer::force_get_ref` and similar functions have been added to deal with unaligned objects.
+* the `Castable` trait can be derived for any struct given it meets the requirements, see the docs for more details.
+
 ## 0.3.0
 **This version makes major changes!** The `Buffer` struct is now a trait, and the struct has been converted to `PtrBuffer`. This simplifies the code and unifies the featureset without having to repeat code all over the place. Additionally, it gives the user the ability to define their own `Buffer` object.
 
