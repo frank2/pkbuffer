@@ -2,7 +2,7 @@
 name = "pkbuffer"
 description = "Buffer objects made for arbitrary casting and addressing!"
 repository = "https://github.com/frank2/pkbuffer"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["frank2@dc949.org"]
 edition = "2018"
 license = "GPL-3.0"
@@ -14,7 +14,8 @@ documentation = "https://docs.rs/pkbuffer"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bytemuck = "1.8.0"
+pkbuffer_derive = "0.1.0"
 
 [dev-dependencies]
 hex = "0.4.3"
+pkbuffer = { path = "." }
