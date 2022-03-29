@@ -1,4 +1,4 @@
-use super::*;
+use pkbuffer::*;
 use hex;
 
 #[test]
@@ -19,17 +19,11 @@ fn test_ptrbuffer() {
     assert!(error_result.is_err());
 
     #[repr(packed)]
-    #[derive(Copy, Clone, Debug)]
+    #[derive(Copy, Clone, Castable, Debug)]
     struct StructTest {
         deadbe: [u8; 3],
         efab: u16,
         ad1deade: u32,
-    }
-    unsafe impl Pod for StructTest { }
-    unsafe impl Zeroable for StructTest {
-        fn zeroed() -> Self {
-            Self { deadbe: [0,0,0], efab: 0, ad1deade: 0 }
-        }
     }
 
     let struct_result = buffer.get_ref::<StructTest>(0);
@@ -55,6 +49,19 @@ fn test_ptrbuffer() {
 
     let ad1deade_unaligned = struct_data.ad1deade;
     assert_eq!(ad1deade_unaligned, 0xDEA7BEAD);
+
+    #[repr(C)]
+    #[derive(Clone, Castable)]
+    struct AlignedTest {
+        deadbeef: u32,
+        abad1dea: u32,
+    }
+
+    let bad_alignment = buffer.get_ref::<AlignedTest>(2);
+    assert!(bad_alignment.is_err());
+
+    if let Err(Error::BadAlignment(_,_)) = bad_alignment {}
+    else { panic!("didn't get an alignment error"); }
 
     let read_result = buffer.read(8, 4);
     assert!(read_result.is_ok());
