@@ -101,6 +101,16 @@ fn test_ptrbuffer() {
     assert!(search_results.is_ok());
     assert!(search_results.unwrap().next().is_some());
 
+    let dynamic_test = hex::decode("ff2763582764ff276488654327384858642764").unwrap();
+    let dynamic_buffer = PtrBuffer::new(dynamic_test.as_ptr(), dynamic_test.len());
+    let dynamic_search = dynamic_buffer.search_dynamic(&[None, Some(0x27), Some(0x64), None, Some(0x27), Some(0x64)]);
+
+    assert!(dynamic_search.is_ok());
+
+    let result = dynamic_search.unwrap().next();
+    assert!(result.is_some());
+    assert_eq!(result.unwrap(), 3);
+
     assert!(buffer.contains([0xDE, 0xAD, 0xBE, 0xA7]));
     assert!(!buffer.contains_ref::<u32>(&0xFACEBABE).unwrap());
     assert!(buffer.contains_ref::<u32>(&0xEA1DADAB).unwrap());
