@@ -89,6 +89,8 @@ pub enum Error {
     /// The sizes didn't match. The first arg represents the expected size,
     /// the second arg represents the received size.
     SizeMismatch(usize,usize),
+    /// The search term would match everything.
+    SearchMatchesEverything,
 }
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -99,6 +101,7 @@ impl std::fmt::Display for Error {
             Self::BadAlignment(expected,got) => write!(f, "bad alignment: expected {}-byte alignment, but alignment is off by {}", expected, got),
             Self::ZeroSizedType => write!(f, "zero sized type"),
             Self::SizeMismatch(expected,got) => write!(f, "size mismatch: the two types differed in size, expected {}, got {}", expected, got),
+            Self::SearchMatchesEverything => write!(f, "the search would match everything in the binary"),
         }
     }
 }

@@ -545,6 +545,19 @@ pub trait Buffer {
         let bytes = slice_ref_to_bytes::<T>(data)?;
         self.search(bytes)
     }
+    /// Return a search iterator for a dynamic byte pattern within the binary.
+    ///
+    /// This function uses an [`Option<u8>`](Option) wrapper to represent wildcards in the search terms.
+    /// For example, a search term for a four-byte sequence wrapped in `0xFF`, use this:
+    ///
+    /// ```rust
+    /// let search = vec![Some(0xFFu8), None, None, None, None, Some(0xFFu8)];
+    /// ```
+    ///
+    /// For more information about searching, see [`Buffer::search`](Buffer::search).
+    fn search_dynamic<'a, B: AsRef<[Option<u8>]>>(&'a self, data: B) -> Result<BufferSearchDynamicIter<'a>, Error> {
+        BufferSearchDynamicIter::new(self.as_slice(), data)
+    }
     /// Check if this buffer contains the following [`u8`](u8) [slice](slice) sequence.
     fn contains<B: AsRef<[u8]>>(&self, data: B) -> bool {
         let buf = data.as_ref();
@@ -746,6 +759,85 @@ impl<'a> Iterator for BufferSearchIter<'a> {
 
             let found_slice = &self.buffer[offset..offset+self.term.len()];
             if found_slice == self.term.as_slice() { return Some(offset); }
+        }
+    }
+}
+
+/// An iterator for searching over a [`Buffer`](Buffer)'s space for a given dynamic search term.
+pub struct BufferSearchDynamicIter<'a> {
+    buffer: &'a [u8],
+    term: Vec<Option<u8>>,
+    term_index: usize,
+    offsets: Vec<usize>,
+    offset_index: usize,
+}
+impl<'a> BufferSearchDynamicIter<'a> {
+    fn find_next_const(&self, index: Option<usize>) -> Option<usize> {
+        let start;
+        
+        if index.is_none() {
+            start = 0;
+        }
+        else {
+            start = index.unwrap()+1;
+        }
+
+        for i in start..self.term.len() {
+            if self.term[i].is_none() { continue; }
+            return Some(i);
+        }
+
+        return None
+    }
+    
+    /// Create a new search iterator over a buffer reference. Typically you'll just want to call [`Buffer::search_dynamic`](Buffer::search_dynamic) instead,
+    /// but this essentially does the same thing.
+    ///
+    /// Returns an [`Error::OutOfBounds`](Error::OutOfBounds) error if the search term is longer than the buffer.
+    pub fn new<B: AsRef<[Option<u8>]>>(buffer: &'a [u8], term: B) -> Result<Self, Error> {
+        let search = term.as_ref();
+
+        if search.len() > buffer.len() { return Err(Error::OutOfBounds(buffer.len(),search.len())); }
+        
+        let mut offsets = Vec::<usize>::new();
+        let mut result = Self { buffer: buffer, term: search.to_vec(), term_index: 0, offsets: offsets.clone(), offset_index: 0 };
+        let search_const = result.find_next_const(None);
+
+        if search_const.is_none() { return Err(Error::SearchMatchesEverything); }
+        let search_const = search_const.unwrap();
+        let search_val = search[search_const].unwrap();
+
+        for i in 0..=(buffer.len()-search.len()) {
+            if buffer[i+search_const] == search_val { offsets.push(i); }
+        }
+
+        result.offsets = offsets;
+        result.term_index = search_const;
+
+        Ok(result)
+    }
+}
+impl<'a> Iterator for BufferSearchDynamicIter<'a> {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        'search: loop {
+            if self.offset_index >= self.offsets.len() { return None; }
+
+            let offset = self.offsets[self.offset_index];
+            self.offset_index += 1;
+
+            let found_slice = &self.buffer[offset..offset+self.term.len()];
+            let mut search = self.term_index;
+
+            while let Some(next_search) = self.find_next_const(Some(search)) {
+                search = next_search;
+                let term = self.term[search].unwrap();
+
+                if found_slice[search] != term { continue 'search; }
+            }
+            
+            return Some(offset);
         }
     }
 }
