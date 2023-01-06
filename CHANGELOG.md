@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.2
+### Bugfixes
+* fixes the general search function's runtime by using the memchr library's two-way search implementation, thanks to @Thell for reporting!
+
 ## 0.4.1
 ### Features
 * added a dynamic search feature to buffers. Now you can search for a dynamic pattern of bytes, see the docs for more details!
