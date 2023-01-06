@@ -1,4 +1,5 @@
 use crate::{Castable, Error, ref_to_bytes, slice_ref_to_bytes, bytes_to_ref, bytes_to_mut_ref};
+use memchr::memmem;
 
 /// The trait by which all buffer objects are derived.
 pub trait Buffer {
@@ -530,18 +531,18 @@ pub trait Buffer {
     /// let search_results = buffer.search(&[0xBE, 0xEF]).unwrap().collect::<Vec<usize>>();
     /// assert_eq!(search_results, [0,2,6,8]);
     /// ```
-    fn search<'a, B: AsRef<[u8]>>(&'a self, data: B) -> Result<BufferSearchIter<'a>, Error> {
-        BufferSearchIter::new(self.as_slice(), data)
+    fn search<B: AsRef<[u8]>>(&self, data: B) -> Result<BufferSearchIter, Error> {
+        BufferSearchIter::new(self.as_slice(), data.as_ref())
     }
     /// Search for the following reference of type *T*. This converts the object into a [`u8`](u8) [slice](slice).
     /// See [`Buffer::search`](Buffer::search).
-    fn search_ref<'a, T: Castable>(&'a self, data: &T) -> Result<BufferSearchIter<'a>, Error> {
+    fn search_ref<T: Castable>(&self, data: &T) -> Result<BufferSearchIter, Error> {
         let bytes = ref_to_bytes::<T>(data)?;
         self.search(bytes)
     }
     /// Search for the following slice reference of type *T*. This converts the slice into a [`u8`](u8) [slice](slice).
     /// See [`Buffer::search`](Buffer::search).
-    fn search_slice_ref<'a, T: Castable>(&'a self, data: &[T]) -> Result<BufferSearchIter<'a>, Error> {
+    fn search_slice_ref<T: Castable>(&self, data: &[T]) -> Result<BufferSearchIter, Error> {
         let bytes = slice_ref_to_bytes::<T>(data)?;
         self.search(bytes)
     }
@@ -722,44 +723,36 @@ impl<'a> Iterator for BufferIterMut<'a> {
 }
 
 /// An iterator for searching over a [`Buffer`](Buffer)'s space for a given binary search term.
-pub struct BufferSearchIter<'a> {
-    buffer: &'a [u8],
-    term: Vec<u8>,
+pub struct BufferSearchIter {
     offsets: Vec<usize>,
     offset_index: usize,
 }
-impl<'a> BufferSearchIter<'a> {
+impl BufferSearchIter {
     /// Create a new search iterator over a buffer reference. Typically you'll just want to call [`Buffer::search`](Buffer::search) instead,
     /// but this essentially does the same thing.
     ///
     /// Returns an [`Error::OutOfBounds`](Error::OutOfBounds) error if the search term is longer than the buffer.
-    pub fn new<B: AsRef<[u8]>>(buffer: &'a [u8], term: B) -> Result<Self, Error> {
+    pub fn new<B: AsRef<[u8]>>(buf: B, term: B) -> Result<Self, Error> {
+        let buffer = buf.as_ref();
         let search = term.as_ref();
 
         if search.len() > buffer.len() { return Err(Error::OutOfBounds(buffer.len(),search.len())); }
         
-        let mut offsets = Vec::<usize>::new();
+        let offsets: Vec<usize> = memmem::find_iter(buffer, search).collect();
 
-        for i in 0..=(buffer.len() - search.len()) {
-            if buffer[i] == search[0] { offsets.push(i); }
-        }
-
-        Ok(Self { buffer: buffer, term: search.to_vec(), offsets: offsets, offset_index: 0 })
+        Ok(Self { offsets: offsets, offset_index: 0 })
     }
 }
-impl<'a> Iterator for BufferSearchIter<'a> {
+impl Iterator for BufferSearchIter {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if self.offset_index >= self.offsets.len() { return None; }
+        if self.offset_index >= self.offsets.len() { return None; }
 
-            let offset = self.offsets[self.offset_index];
-            self.offset_index += 1;
+        let offset = self.offsets[self.offset_index];
+        self.offset_index += 1;
 
-            let found_slice = &self.buffer[offset..offset+self.term.len()];
-            if found_slice == self.term.as_slice() { return Some(offset); }
-        }
+        Some(offset)
     }
 }
 
