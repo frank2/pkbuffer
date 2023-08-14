@@ -1,4 +1,4 @@
-use crate::{Buffer, Castable, Error, PtrBuffer, ref_to_bytes, slice_ref_to_bytes};
+use crate::{ref_to_bytes, slice_ref_to_bytes, Buffer, Castable, Error, PtrBuffer};
 
 /// An owned-data [`Buffer`](Buffer) object.
 #[derive(Clone, Eq, Debug)]
@@ -8,11 +8,15 @@ pub struct VecBuffer {
 impl VecBuffer {
     /// Create a new ```VecBuffer``` object, similar to [`Vec::new`](Vec::new).
     pub fn new() -> Self {
-        Self { data: Vec::<u8>::new() }
+        Self {
+            data: Vec::<u8>::new(),
+        }
     }
     /// Create a new `VecBuffer` object with initialization data.
     pub fn from_data<B: AsRef<[u8]>>(data: B) -> Self {
-        Self { data: data.as_ref().to_vec() }
+        Self {
+            data: data.as_ref().to_vec(),
+        }
     }
     /// Create a new ```VecBuffer``` from the given file data.
     pub fn from_file<P: AsRef<std::path::Path>>(filename: P) -> Result<Self, Error> {
@@ -34,17 +38,19 @@ impl VecBuffer {
     }
     /// Appends the given data to the end of the buffer. This resizes and expands the underlying vector.
     pub fn append<B: AsRef<[u8]>>(&mut self, data: B) {
-        self.data.append(&mut data.as_ref().to_vec());
+        self.data.extend_from_slice(data.as_ref());
     }
     /// Appends the given reference to the end of the buffer. This resizes and expands the underlying vector.
     pub fn append_ref<T: Castable>(&mut self, data: &T) -> Result<(), Error> {
         let bytes = ref_to_bytes::<T>(data)?;
-        self.append(bytes); Ok(())
+        self.data.extend_from_slice(bytes);
+        Ok(())
     }
     /// Appends the given slice reference to the end of the buffer. This resizes and expands the underlying vector.
     pub fn append_slice_ref<T: Castable>(&mut self, data: &[T]) -> Result<(), Error> {
         let bytes = slice_ref_to_bytes::<T>(data)?;
-        self.append(bytes); Ok(())
+        self.append(bytes);
+        Ok(())
     }
     /// Insert a given *element* at the given *offset*, expanding the vector by one. See [`Vec::insert`](Vec::insert).
     pub fn insert(&mut self, offset: usize, element: u8) {
@@ -57,7 +63,7 @@ impl VecBuffer {
     /// Retains only the elements specified by the predicate. See [`Vec::retain`](Vec::retain).
     pub fn retain<F>(&mut self, f: F)
     where
-        F: FnMut(&u8) -> bool
+        F: FnMut(&u8) -> bool,
     {
         self.data.retain(f);
     }
@@ -81,7 +87,7 @@ impl VecBuffer {
     /// Resize the buffer to *new size*, filling with the given closure *f*. See [`Vec::resize_with`](Vec::resize_with).
     pub fn resize_with<F>(&mut self, new_len: usize, f: F)
     where
-        F: FnMut() -> u8
+        F: FnMut() -> u8,
     {
         self.data.resize_with(new_len, f);
     }
@@ -116,8 +122,7 @@ impl Buffer for VecBuffer {
         self.data.as_slice()
     }
     /// Get the `VecBuffer` object as a mutable slice.
-    fn as_mut_slice(&mut self) -> &mut [u8]
-    {
+    fn as_mut_slice(&mut self) -> &mut [u8] {
         self.data.as_mut_slice()
     }
 }
@@ -166,13 +171,13 @@ impl std::convert::AsMut<[u8]> for VecBuffer {
 impl std::hash::Hash for VecBuffer {
     fn hash<H>(&self, state: &mut H)
     where
-        H: std::hash::Hasher
+        H: std::hash::Hasher,
     {
         self.data.hash(state);
     }
     fn hash_slice<H>(data: &[Self], state: &mut H)
     where
-        H: std::hash::Hasher
+        H: std::hash::Hasher,
     {
         data.iter().for_each(|x| x.hash(state));
     }
